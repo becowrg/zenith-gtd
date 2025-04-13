@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zenith GTD - Task Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Styles (Mostly same as before) */
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        body.overflow-hidden { overflow: hidden; }
+        .sidebar-link.active { background-color: #e0f2fe; color: #0c4a6e; font-weight: 600; }
+        .sidebar-link, button, input, select, textarea, label { transition: all 0.2s ease-in-out; }
+        .task-list-container::-webkit-scrollbar { width: 6px; }
+        .task-list-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .task-list-container::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        .task-list-container::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .task-item.completed .task-title { text-decoration: line-through; color: #6b7280; }
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+        .modal-content { background-color: #fff; margin: auto; padding: 1.5rem; border-radius: 0.5rem; width: 90%; max-width: 600px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .modal-close { color: #aaa; position: absolute; top: 0.5rem; right: 0.75rem; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 1; }
+        .modal-close:hover, .modal-close:focus { color: #333; text-decoration: none; }
+        .hidden { display: none !important; }
+        #sidebar { transition: transform 0.3s ease-in-out; }
+        #sidebar.mobile-visible { transform: translateX(0); }
+        #sidebar-overlay { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 30; opacity: 0; transition: opacity 0.3s ease-in-out; pointer-events: none; }
+        #sidebar-overlay.visible { opacity: 1; pointer-events: auto; }
+        .file-input-button { cursor: pointer; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.375rem; background-color: #10b981; color: white; font-weight: 500; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        .file-input-button:hover { background-color: #059669; }
+        input[type="file"].hidden-input { width: 0.1px; height: 0.1px; opacity: 0; overflow: hidden; position: absolute; z-index: -1; }
+        @media (max-width: 480px) { #edit-task-form .flex.justify-end { flex-direction: column-reverse; align-items: stretch; } #edit-task-form .flex.justify-end button { width: 100%; } }
+        .header-filter-container { display: flex; align-items: center; gap: 0.5rem; }
+        .header-filter-container label { margin-right: 0.25rem; }
+        /* Ensure task detail badges wrap nicely */
+        .task-details-line {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem; /* Space between badges */
+            line-height: 1.5; /* Adjust line height for wrapped badges */
+        }
+         .task-details-line > span {
+             margin-bottom: 0.25rem; /* Add bottom margin if badges wrap */
+         }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+<div class="flex h-screen antialiased text-gray-800">
+
+    <div id="sidebar-overlay" class=""></div>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0 transform -translate-x-full md:relative md:translate-x-0 md:flex">
+        <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-sky-700">Zenith GTD</h1>
+            <button id="sidebar-close-button" class="md:hidden text-gray-500 hover:text-gray-700"> <i class="fas fa-times text-xl"></i> </button>
+        </div>
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Capture & Process</h2>
+            <a href="#" id="nav-inbox" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-inbox w-5 h-5 mr-3 text-gray-500"></i> Inbox </a>
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Organize</h2>
+            <a href="#" id="nav-next" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-star w-5 h-5 mr-3 text-yellow-500"></i> Next Actions </a>
+            <a href="#" id="nav-projects" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-tasks w-5 h-5 mr-3 text-blue-500"></i> Projects </a>
+            <a href="#" id="nav-waiting" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-user-clock w-5 h-5 mr-3 text-orange-500"></i> Waiting For </a>
+            <a href="#" id="nav-scheduled" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-calendar-alt w-5 h-5 mr-3 text-red-500"></i> Scheduled </a>
+            <a href="#" id="nav-someday" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-cloud w-5 h-5 mr-3 text-purple-500"></i> Someday/Maybe </a>
+            <a href="#" id="nav-reference" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-book w-5 h-5 mr-3 text-green-500"></i> Reference </a>
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Manage</h2>
+            <a href="#" id="nav-contexts" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-at w-5 h-5 mr-3 text-gray-500"></i> Contexts </a>
+            <a href="#" id="nav-areas" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-map-pin w-5 h-5 mr-3 text-gray-500"></i> Areas </a>
+            <a href="#" id="nav-all-tasks" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-list-ul w-5 h-5 mr-3 text-gray-500"></i> All Tasks </a>
+        </nav>
+        <div class="p-4 border-t border-gray-200 mt-auto space-y-3">
+             <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Data</h2>
+             <button id="export-data-button" class="w-full flex items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 text-sm"> <i class="fas fa-download w-4 h-4 mr-2"></i> Export Data </button>
+             <label for="import-data-input" class="file-input-button w-full justify-center text-sm"> <i class="fas fa-upload w-4 h-4 mr-2"></i> Import Data </label>
+             <input type="file" id="import-data-input" accept=".json" class="hidden-input">
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+        <header class="bg-white border-b border-gray-200 p-4 flex flex-wrap justify-between items-center flex-shrink-0 gap-2"> <div class="flex items-center">
+                 <button id="menu-toggle-button" class="md:hidden text-gray-600 hover:text-gray-800 focus:outline-none mr-3"> <i class="fas fa-bars text-xl"></i> </button>
+                <h2 id="current-view-title" class="text-lg font-semibold text-gray-800">Inbox</h2>
+            </div>
+            <div class="flex items-center gap-4"> <div id="context-filter-container" class="hidden header-filter-container">
+                    <label for="context-filter-select" class="text-sm font-medium text-gray-700 hidden sm:inline">Context:</label>
+                    <select id="context-filter-select" class="rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 text-sm py-1 px-2"> <option value="all">All</option> </select>
+                </div>
+                 <div id="project-filter-container" class="hidden header-filter-container">
+                    <label for="project-filter-select" class="text-sm font-medium text-gray-700 hidden sm:inline">Project:</label>
+                    <select id="project-filter-select" class="rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 text-sm py-1 px-2"> <option value="all">All</option> </select>
+                </div>
+            </div>
+        </header>
+
+        <div class="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+            <form id="add-task-form" class="flex gap-2">
+                <input type="text" id="new-task-title" placeholder="Capture a new task..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent" required>
+                <button type="submit" class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 flex-shrink-0"> <i class="fas fa-plus md:mr-1"></i> <span class="hidden md:inline">Add</span> </button>
+            </form>
+             <form id="add-management-item-form" class="hidden flex gap-2">
+                <input type="text" id="new-management-item-name" placeholder="Add new..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent" required>
+                <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex-shrink-0"> <i class="fas fa-plus md:mr-1"></i> <span class="hidden md:inline">Add Item</span> </button>
+            </form>
+        </div>
+
+        <div id="task-list-container" class="flex-1 overflow-y-auto p-4 task-list-container">
+             <p id="empty-state-message" class="text-center text-gray-500 mt-10">No tasks here yet!</p>
+             <ul id="task-list" class="space-y-3"></ul>
+             <ul id="management-item-list" class="space-y-2 hidden"></ul>
+        </div>
+    </main>
+
+    <div id="task-modal" class="modal">
+         <div class="modal-content relative">
+            <span class="modal-close">&times;</span>
+            <h3 id="modal-title" class="text-xl font-semibold mb-6">Process Task</h3>
+            <form id="edit-task-form">
+                <input type="hidden" id="edit-task-id">
+                <div class="mb-4"> <label for="edit-task-title" class="block text-sm font-medium text-gray-700 mb-1">Title</label> <input type="text" id="edit-task-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent" required> </div>
+                <div class="mb-4"> <label for="edit-task-notes" class="block text-sm font-medium text-gray-700 mb-1">Notes</label> <textarea id="edit-task-notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"></textarea> </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div> <label for="edit-task-status" class="block text-sm font-medium text-gray-700 mb-1">Status</label> <select id="edit-task-status" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"> <option value="inbox">Inbox</option> <option value="next">Next Action</option> <option value="project_task">Project Task</option> <option value="waiting">Waiting For</option> <option value="scheduled">Scheduled</option> <option value="someday">Someday/Maybe</option> <option value="reference">Reference</option> <option value="completed">Completed</option> </select> </div>
+                    <div> <label for="edit-task-project" class="block text-sm font-medium text-gray-700 mb-1">Project</label> <select id="edit-task-project" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"> <option value="">None</option> </select> </div>
+                    <div> <label for="edit-task-context" class="block text-sm font-medium text-gray-700 mb-1">Context</label> <select id="edit-task-context" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"> <option value="">None</option> </select> </div>
+                    <div> <label for="edit-task-area" class="block text-sm font-medium text-gray-700 mb-1">Area</label> <select id="edit-task-area" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"> <option value="">None</option> </select> </div>
+                    <div> <label for="edit-task-due-date" class="block text-sm font-medium text-gray-700 mb-1">Due Date</label> <input type="date" id="edit-task-due-date" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"> </div>
+                </div>
+                <div class="flex justify-end gap-3 mt-6"> <button type="button" id="delete-task-button" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 hidden"> <i class="fas fa-trash-alt mr-1"></i> Delete </button> <button type="submit" class="px-4 py-2 bg-sky-600 text-white rounded-md hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1"> <i class="fas fa-save mr-1"></i> Save Changes </button> <button type="button" class="modal-cancel-button px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1"> Cancel </button> </div>
+            </form>
+        </div>
+    </div>
+
+</div> <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- DOM Elements ---
+            // (Existing elements...)
+            const addTaskForm = document.getElementById('add-task-form');
+            const newTaskTitleInput = document.getElementById('new-task-title');
+            const taskListUl = document.getElementById('task-list');
+            const managementItemListUl = document.getElementById('management-item-list');
+            const currentViewTitle = document.getElementById('current-view-title');
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            const emptyStateMessage = document.getElementById('empty-state-message');
+            const addManagementItemForm = document.getElementById('add-management-item-form');
+            const newManagementItemNameInput = document.getElementById('new-management-item-name');
+            const taskModal = document.getElementById('task-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const editTaskForm = document.getElementById('edit-task-form');
+            const editTaskId = document.getElementById('edit-task-id');
+            const editTaskTitle = document.getElementById('edit-task-title');
+            const editTaskNotes = document.getElementById('edit-task-notes');
+            const editTaskStatus = document.getElementById('edit-task-status');
+            const editTaskProject = document.getElementById('edit-task-project');
+            const editTaskContext = document.getElementById('edit-task-context');
+            const editTaskArea = document.getElementById('edit-task-area');
+            const editTaskDueDate = document.getElementById('edit-task-due-date');
+            const deleteTaskButton = document.getElementById('delete-task-button');
+            const closeModalButton = taskModal.querySelector('.modal-close');
+            const cancelModalButton = taskModal.querySelector('.modal-cancel-button');
+            const exportDataButton = document.getElementById('export-data-button');
+            const importDataInput = document.getElementById('import-data-input');
+            const sidebar = document.getElementById('sidebar');
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+            const menuToggleButton = document.getElementById('menu-toggle-button');
+            const sidebarCloseButton = document.getElementById('sidebar-close-button');
+            const contextFilterContainer = document.getElementById('context-filter-container');
+            const contextFilterSelect = document.getElementById('context-filter-select');
+            const projectFilterContainer = document.getElementById('project-filter-container');
+            const projectFilterSelect = document.getElementById('project-filter-select');
+
+
+            // --- State ---
+            let currentView = 'inbox';
+            let currentManagementView = null;
+            let currentContextFilter = 'all';
+            let currentProjectFilter = 'all';
+
+
+            // --- Data Storage (localStorage) ---
+            const getData = (key, defaultValue = []) => { /* ... */ const data = localStorage.getItem(key); try { const parsedData = data ? JSON.parse(data) : defaultValue; return Array.isArray(parsedData) ? parsedData : defaultValue; } catch (error) { console.error(`Error parsing localStorage key "${key}":`, error); return defaultValue; } };
+            const saveData = (key, data) => { /* ... */ try { localStorage.setItem(key, JSON.stringify(data)); } catch (error) { console.error(`Error saving data to localStorage key "${key}":`, error); alert('Error saving data.'); } };
+
+            // Load initial data
+            let tasks = getData('gtdTasks');
+            let projects = getData('gtdProjects');
+            let contexts = getData('gtdContexts');
+            let areas = getData('gtdAreas');
+
+            // --- Core Functions (addTask, addManagementItem, updateTask, deleteTask, deleteManagementItem, getTaskById) ---
+            // (No changes needed)
+            const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            const addTask = (title) => { /* ... */ const t = title.trim(); if (!t) return; const n = { id: generateId(), title: t, notes: '', status: 'inbox', projectId: null, contextId: null, areaId: null, dueDate: null, createdAt: new Date().toISOString(), completedAt: null }; tasks.push(n); saveData('gtdTasks', tasks); newTaskTitleInput.value = ''; render(); };
+            const addManagementItem = (name) => { /* ... */ const t = name.trim(); if (!t || !currentManagementView) return; const n = { id: generateId(), name: t }; let d, k; switch (currentManagementView) { case 'projects': d = projects; k = 'gtdProjects'; break; case 'contexts': d = contexts; k = 'gtdContexts'; break; case 'areas': d = areas; k = 'gtdAreas'; break; default: return; } d.push(n); saveData(k, d); newManagementItemNameInput.value = ''; render(); };
+            const updateTask = (id, updates) => { /* ... */ let f = false; tasks = tasks.map(t => { if (t.id === id) { f = true; if (updates.status === 'completed' && t.status !== 'completed') updates.completedAt = new Date().toISOString(); else if (updates.status !== 'completed' && t.status === 'completed') updates.completedAt = null; updates.projectId = updates.projectId || null; updates.contextId = updates.contextId || null; updates.areaId = updates.areaId || null; updates.dueDate = updates.dueDate || null; return { ...t, ...updates }; } return t; }); if (f) { saveData('gtdTasks', tasks); render(); } else { console.error("Task not found for update:", id); } };
+            const deleteTask = (id) => { /* ... */ if (confirm('Are you sure?')) { const l = tasks.length; tasks = tasks.filter(t => t.id !== id); if (tasks.length < l) { saveData('gtdTasks', tasks); closeModal(); render(); } } };
+            const deleteManagementItem = (id, type) => { /* ... */ if (!confirm(`Are you sure?`)) return; let d, k, f, l; switch (type) { case 'project': d = projects; k = 'gtdProjects'; f = 'projectId'; break; case 'context': d = contexts; k = 'gtdContexts'; f = 'contextId'; break; case 'area': d = areas; k = 'gtdAreas'; f = 'areaId'; break; default: return; } l = d.length; d = d.filter(i => i.id !== id); if(d.length < l) { saveData(k, d); let u = false; tasks = tasks.map(t => { if (t[f] === id) { u = true; return { ...t, [f]: null }; } return t; }); if(u) saveData('gtdTasks', tasks); if (type === 'project') projects = d; if (type === 'context') contexts = d; if (type === 'area') areas = d; render(); } };
+            const getTaskById = (id) => tasks.find(task => task.id === id);
+
+
+            // --- Rendering Functions ---
+
+            // Helper to get status badge HTML
+            const getStatusBadge = (status) => {
+                let badgeClass = '';
+                let badgeText = '';
+
+                switch (status) {
+                    case 'inbox':
+                        badgeClass = 'bg-gray-200 text-gray-700';
+                        badgeText = 'Inbox';
+                        break;
+                    case 'next':
+                        badgeClass = 'bg-yellow-100 text-yellow-700';
+                        badgeText = 'Next';
+                        break;
+                    case 'project_task':
+                         // Use same blue as project icon for consistency
+                        badgeClass = 'bg-blue-100 text-blue-700';
+                        badgeText = 'Project Task';
+                        break;
+                    case 'waiting':
+                        badgeClass = 'bg-orange-100 text-orange-700';
+                        badgeText = 'Waiting';
+                        break;
+                    case 'scheduled':
+                         // Using purple for scheduled
+                        badgeClass = 'bg-purple-100 text-purple-700';
+                        badgeText = 'Scheduled';
+                        break;
+                    case 'someday':
+                         // Using teal for someday
+                        badgeClass = 'bg-teal-100 text-teal-700';
+                        badgeText = 'Someday';
+                        break;
+                    case 'reference':
+                         // Using green for reference
+                        badgeClass = 'bg-green-100 text-green-700';
+                        badgeText = 'Reference';
+                        break;
+                    case 'completed': // No badge for completed tasks
+                    default:
+                        return ''; // Return empty string if no badge needed
+                }
+                // Return the HTML string for the badge
+                return `<span class="text-xs ${badgeClass} px-2 py-0.5 rounded-full whitespace-nowrap">${badgeText}</span>`;
+            };
+
+
+            const populateSelect = (selectElement, items, defaultOptionText = 'None', allOptionValue = 'all', allOptionText = 'All') => { /* ... same as before ... */
+                 selectElement.innerHTML = `<option value="${allOptionValue}">${allOptionText}</option>`; items.forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; selectElement.appendChild(option); });
+            };
+
+            const renderTaskItem = (task) => {
+                const li = document.createElement('li');
+                li.className = `task-item bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2 ${task.status === 'completed' ? 'completed' : ''}`;
+                li.dataset.taskId = task.id;
+
+                const isActionable = ['next', 'project_task', 'scheduled', 'waiting'].includes(task.status);
+                const checkboxHtml = isActionable ? `<input type="checkbox" class="task-complete-checkbox h-5 w-5 text-sky-600 border-gray-300 rounded focus:ring-sky-500 cursor-pointer flex-shrink-0" ${task.status === 'completed' ? 'checked' : ''}>` : `<div class="w-5 h-5 flex-shrink-0"></div>`;
+
+                // --- Generate Details HTML ---
+                let statusBadgeHtml = getStatusBadge(task.status); // Get status badge
+                let projectBadgeHtml = '';
+                let contextBadgeHtml = '';
+                let dateBadgeHtml = '';
+
+                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+                const context = task.contextId ? contexts.find(c => c.id === task.contextId) : null;
+
+                if (project) {
+                    projectBadgeHtml = `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">${project.name}</span>`;
+                }
+                if (context) {
+                    contextBadgeHtml = `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full whitespace-nowrap">@${context.name}</span>`;
+                }
+                if (task.dueDate) {
+                    try {
+                        const date = new Date(task.dueDate);
+                        const timezoneOffset = date.getTimezoneOffset() * 60000;
+                        const localDate = new Date(date.getTime() + timezoneOffset);
+                        const formattedDate = localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                        dateBadgeHtml = `<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-calendar-alt mr-1"></i>${formattedDate}</span>`;
+                    } catch (e) { console.error("Error formatting date:", task.dueDate, e); }
+                }
+
+                // Combine all details, putting status first if present
+                const detailsHtml = [statusBadgeHtml, projectBadgeHtml, contextBadgeHtml, dateBadgeHtml].filter(Boolean).join(''); // Filter out empty strings and join
+
+                li.innerHTML = `
+                    <div class="flex items-center gap-3 flex-grow min-w-0">
+                        ${checkboxHtml}
+                        <div class="flex-grow overflow-hidden">
+                            <span class="task-title text-gray-800 cursor-pointer hover:text-sky-600 truncate block" title="${task.title}">${task.title}</span>
+                            <div class="text-xs text-gray-500 mt-1 task-details-line"> ${detailsHtml || '&nbsp;'} </div>
+                        </div>
+                    </div>
+                    <button class="edit-task-button text-gray-400 hover:text-sky-600 px-2 py-1 rounded flex-shrink-0">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                `;
+
+                // Event listeners (same as before)
+                li.querySelector('.edit-task-button').addEventListener('click', (e) => { e.stopPropagation(); openModal(task.id); });
+                li.querySelector('.task-title').addEventListener('click', () => openModal(task.id));
+                const checkbox = li.querySelector('.task-complete-checkbox');
+                if (checkbox) { checkbox.addEventListener('change', (e) => { const previousStatus = task.status === 'project_task' ? 'project_task' : 'next'; const newStatus = e.target.checked ? 'completed' : previousStatus; updateTask(task.id, { status: newStatus }); }); }
+                return li;
+            };
+
+            const renderManagementItem = (item, type) => { /* ... same as before ... */
+                 const li = document.createElement('li'); li.className = 'bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2'; li.dataset.itemId = item.id; li.dataset.itemType = type; li.innerHTML = `<span class="text-gray-800 flex-grow truncate" title="${item.name}">${item.name}</span><button class="delete-item-button text-red-400 hover:text-red-600 px-2 py-1 rounded flex-shrink-0"><i class="fas fa-trash-alt"></i></button>`; li.querySelector('.delete-item-button').addEventListener('click', () => deleteManagementItem(item.id, type)); return li;
+            };
+
+            const render = () => { /* ... same structure as before, filtering logic unchanged ... */
+                taskListUl.innerHTML = ''; managementItemListUl.innerHTML = ''; taskListUl.classList.add('hidden'); managementItemListUl.classList.add('hidden'); addManagementItemForm.classList.add('hidden'); addTaskForm.classList.remove('hidden'); contextFilterContainer.classList.add('hidden'); projectFilterContainer.classList.add('hidden'); emptyStateMessage.classList.add('hidden'); let itemsToRender = []; let isManagementView = false; let baseTasks = [];
+                switch (currentView) {
+                    case 'inbox': baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox'; break;
+                    case 'next': baseTasks = tasks.filter(t => t.status === 'next' || t.status === 'project_task'); currentViewTitle.textContent = 'Next Actions'; contextFilterContainer.classList.remove('hidden'); populateSelect(contextFilterSelect, contexts, 'All Contexts', 'all', 'All'); contextFilterSelect.value = currentContextFilter; break;
+                    case 'projects': isManagementView = true; currentManagementView = 'projects'; itemsToRender = projects; currentViewTitle.textContent = 'Manage Projects'; break;
+                    case 'waiting': baseTasks = tasks.filter(t => t.status === 'waiting'); currentViewTitle.textContent = 'Waiting For'; break;
+                    case 'scheduled': baseTasks = tasks.filter(t => t.status === 'scheduled').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)); currentViewTitle.textContent = 'Scheduled'; break;
+                    case 'someday': baseTasks = tasks.filter(t => t.status === 'someday'); currentViewTitle.textContent = 'Someday/Maybe'; break;
+                    case 'reference': baseTasks = tasks.filter(t => t.status === 'reference'); currentViewTitle.textContent = 'Reference'; break;
+                    case 'contexts': isManagementView = true; currentManagementView = 'contexts'; itemsToRender = contexts; currentViewTitle.textContent = 'Manage Contexts'; break;
+                    case 'areas': isManagementView = true; currentManagementView = 'areas'; itemsToRender = areas; currentViewTitle.textContent = 'Manage Areas'; break;
+                    case 'all-tasks': baseTasks = tasks.filter(t => t.status !== 'completed'); currentViewTitle.textContent = 'All Tasks'; projectFilterContainer.classList.remove('hidden'); populateSelect(projectFilterSelect, projects, 'All Projects', 'all', 'All'); projectFilterSelect.value = currentProjectFilter; break;
+                    default: currentView = 'inbox'; baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox';
+                }
+                if (!isManagementView) { itemsToRender = baseTasks; if (currentView === 'next' && currentContextFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.contextId === currentContextFilter); } if (currentView === 'all-tasks' && currentProjectFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.projectId === currentProjectFilter); } }
+                sidebarLinks.forEach(link => { link.classList.remove('active'); if (link.id === `nav-${currentView}`) link.classList.add('active'); });
+                if (isManagementView) { managementItemListUl.classList.remove('hidden'); addTaskForm.classList.add('hidden'); addManagementItemForm.classList.remove('hidden'); newManagementItemNameInput.placeholder = `Add new ${currentManagementView.slice(0, -1)}...`; if (itemsToRender.length === 0) { emptyStateMessage.textContent = `No ${currentManagementView} defined yet.`; emptyStateMessage.classList.remove('hidden'); } else { itemsToRender.forEach(item => managementItemListUl.appendChild(renderManagementItem(item, currentManagementView.slice(0, -1)))); } }
+                else { taskListUl.classList.remove('hidden'); if (itemsToRender.length === 0) { let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`; if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`; if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`; emptyStateMessage.textContent = emptyMsg; emptyStateMessage.classList.remove('hidden'); } else { itemsToRender.forEach(task => taskListUl.appendChild(renderTaskItem(task))); } }
+            };
+
+
+            // --- Modal Functions (openModal, closeModal) ---
+            // (No changes needed)
+             const openModal = (taskId = null) => { /* ... */ if (!editTaskProject || !editTaskContext || !editTaskArea) { console.error("Modal elements not found!"); return; } populateSelect(editTaskProject, projects); populateSelect(editTaskContext, contexts); populateSelect(editTaskArea, areas); if (taskId) { const task = getTaskById(taskId); if (!task) { console.error("Task not found for modal:", taskId); return; } modalTitle.textContent = 'Edit Task'; editTaskId.value = task.id; editTaskTitle.value = task.title; editTaskNotes.value = task.notes || ''; editTaskStatus.value = task.status; editTaskProject.value = task.projectId || ''; editTaskContext.value = task.contextId || ''; editTaskArea.value = task.areaId || ''; editTaskDueDate.value = task.dueDate || ''; deleteTaskButton.classList.remove('hidden'); deleteTaskButton.onclick = () => deleteTask(taskId); } else { console.error("Modal opened without task ID - intended for editing."); return; } taskModal.style.display = 'flex'; };
+             const closeModal = () => { /* ... */ taskModal.style.display = 'none'; editTaskForm.reset(); editTaskId.value = ''; deleteTaskButton.classList.add('hidden'); deleteTaskButton.onclick = null; };
+
+            // --- Import/Export Functions (exportData, importData) ---
+            // (No changes needed)
+            const exportData = () => { /* ... */ console.log("Exporting data..."); const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.0" } }; try { const jsonString = JSON.stringify(dataToExport, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0, 10); a.download = `zenith-gtd-backup-${dateStr}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); console.log("Data exported successfully."); } catch (error) { console.error("Error exporting data:", error); alert("An error occurred while exporting data."); } };
+            const importData = (event) => { /* ... */ console.log("Import file selected..."); const file = event.target.files[0]; if (!file) { console.log("No file selected."); return; } if (file.type !== "application/json") { alert("Invalid file type."); event.target.value = null; return; } const reader = new FileReader(); reader.onload = (e) => { try { const importedData = JSON.parse(e.target.result); if (typeof importedData !== 'object' || importedData === null || !Array.isArray(importedData.tasks) || !Array.isArray(importedData.projects) || !Array.isArray(importedData.contexts) || !Array.isArray(importedData.areas)) { throw new Error("Invalid JSON structure."); } if (confirm("Importing this file will OVERWRITE all current data. Are you sure?")) { console.log("User confirmed import."); tasks = importedData.tasks; projects = importedData.projects; contexts = importedData.contexts; areas = importedData.areas; saveData('gtdTasks', tasks); saveData('gtdProjects', projects); saveData('gtdContexts', contexts); saveData('gtdAreas', areas); console.log("Data imported and saved."); alert("Data imported successfully!"); currentView = 'inbox'; render(); } else { console.log("User cancelled import."); } } catch (error) { console.error("Error importing data:", error); alert(`Failed to import data: ${error.message}.`); } finally { event.target.value = null; } }; reader.onerror = (e) => { console.error("Error reading file:", e); alert("An error occurred reading the file."); event.target.value = null; }; reader.readAsText(file); };
+
+            // --- Mobile Menu Functions (openMobileSidebar, closeMobileSidebar) ---
+            // (No changes needed)
+            const openMobileSidebar = () => { if (sidebar && sidebarOverlay) { sidebar.classList.add('mobile-visible'); sidebarOverlay.classList.add('visible'); document.body.classList.add('overflow-hidden'); } };
+            const closeMobileSidebar = () => { if (sidebar && sidebarOverlay) { sidebar.classList.remove('mobile-visible'); sidebarOverlay.classList.remove('visible'); document.body.classList.remove('overflow-hidden'); } };
+
+            // --- Event Listeners ---
+            // (Existing listeners...)
+            if (addTaskForm) addTaskForm.addEventListener('submit', (e) => { e.preventDefault(); if (newTaskTitleInput) addTask(newTaskTitleInput.value); });
+            if (addManagementItemForm) addManagementItemForm.addEventListener('submit', (e) => { e.preventDefault(); if (newManagementItemNameInput) addManagementItem(newManagementItemNameInput.value); });
+            if (editTaskForm) editTaskForm.addEventListener('submit', (e) => { e.preventDefault(); const id = editTaskId.value; if (!id) return; const updates = { title: editTaskTitle.value.trim(), notes: editTaskNotes.value.trim(), status: editTaskStatus.value, projectId: editTaskProject.value, contextId: editTaskContext.value, areaId: editTaskArea.value, dueDate: editTaskDueDate.value }; if (updates.status === 'project_task' && !updates.projectId) { alert('Please select a project for a "Project Task".'); editTaskStatus.value = getTaskById(id)?.status || 'inbox'; return; } updateTask(id, updates); closeModal(); });
+            if (closeModalButton) closeModalButton.addEventListener('click', closeModal);
+            if (cancelModalButton) cancelModalButton.addEventListener('click', closeModal);
+            window.addEventListener('click', (event) => { if (event.target === taskModal) closeModal(); });
+            if (exportDataButton) exportDataButton.addEventListener('click', exportData);
+            if (importDataInput) importDataInput.addEventListener('change', importData);
+            sidebarLinks.forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); const view = link.id.replace('nav-', ''); currentView = view; if (!['projects', 'contexts', 'areas'].includes(view)) currentManagementView = null; render(); if (sidebar && sidebar.classList.contains('mobile-visible')) closeMobileSidebar(); }); });
+            if (menuToggleButton) menuToggleButton.addEventListener('click', (e) => { e.stopPropagation(); openMobileSidebar(); });
+            if (sidebarCloseButton) sidebarCloseButton.addEventListener('click', closeMobileSidebar);
+            if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
+            if(contextFilterSelect) { contextFilterSelect.addEventListener('change', (e) => { currentContextFilter = e.target.value; if (currentView === 'next') render(); }); } else { console.error("Context filter select element not found!"); }
+            if(projectFilterSelect) { projectFilterSelect.addEventListener('change', (e) => { currentProjectFilter = e.target.value; if (currentView === 'all-tasks') render(); }); } else { console.error("Project filter select element not found!"); }
+
+            // --- Initial Render ---
+            render();
+
+        }); // End DOMContentLoaded listener
+    </script>
+
+</body>
+</html>
