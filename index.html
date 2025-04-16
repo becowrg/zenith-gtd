@@ -96,7 +96,6 @@
             padding-left: 1rem; /* Align with items */
             padding-right: 1rem;
         }
-        /* Submenu styling (for projects) */
         .context-menu-submenu {
             max-height: 150px;
             overflow-y: auto;
@@ -111,9 +110,8 @@
         .context-menu-submenu::-webkit-scrollbar-track { background: #f9fafb; border-radius: 10px; }
         .context-menu-submenu::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
         .context-menu-submenu::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-        /* Status list styling (no submenu) */
         #context-menu-status-list .context-menu-item {
-             padding-left: 2rem; /* Indent status items under header */
+             padding-left: 2rem;
         }
 
     </style>
@@ -135,6 +133,7 @@
                 <a href="#" id="nav-projects" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-tasks w-5 h-5 mr-3 text-blue-500"></i> Projects </a>
                 <a href="#" id="nav-waiting" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-user-clock w-5 h-5 mr-3 text-orange-500"></i> Waiting For </a>
                 <a href="#" id="nav-scheduled" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-calendar-alt w-5 h-5 mr-3 text-red-500"></i> Scheduled </a>
+                <a href="#" id="nav-upcoming" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-calendar-check w-5 h-5 mr-3 text-cyan-500"></i> Upcoming </a>
                 <a href="#" id="nav-someday" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-cloud w-5 h-5 mr-3 text-purple-500"></i> Someday/Maybe </a>
                 <a href="#" id="nav-reference" class="sidebar-link flex items-center px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-md"> <i class="fas fa-book w-5 h-5 mr-3 text-green-500"></i> Reference </a>
                 <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Manage</h2>
@@ -343,8 +342,8 @@
             // Context Menu Elements
             const taskContextMenu = document.getElementById('task-context-menu');
             const contextMenuComplete = document.getElementById('context-menu-complete');
-            const contextMenuTimer = document.getElementById('context-menu-timer'); // New Timer Item
-            const contextMenuStatusList = document.getElementById('context-menu-status-list'); // New Status List Container
+            const contextMenuTimer = document.getElementById('context-menu-timer');
+            const contextMenuStatusList = document.getElementById('context-menu-status-list');
             const contextMenuProjectSubmenu = document.getElementById('context-menu-project-submenu');
             const contextMenuDelete = document.getElementById('context-menu-delete');
 
@@ -677,7 +676,7 @@
             // --- Sorting Function ---
             const initSortable = () => { /* ... (no changes) ... */
                  if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
-                 const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 && currentView !== 'completed' && !currentManagementView;
+                 const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 && currentView !== 'completed' && currentView !== 'upcoming' && !currentManagementView; // Disable sorting for upcoming view too
                  if (canSort) {
                      taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'inline-block');
                      sortableInstance = new Sortable(taskListUl, {
@@ -699,20 +698,28 @@
 
 
             // --- Main Render Function ---
-            const render = () => { /* ... (no changes) ... */
-                // console.log("Rendering view:", currentView); // Keep this log for general debugging if needed
+            const render = () => {
+                // console.log("Rendering view:", currentView);
                 taskListUl.innerHTML = ''; managementItemListUl.innerHTML = '';
                 taskListUl.classList.add('hidden'); managementItemListUl.classList.add('hidden');
                 addManagementItemForm.classList.add('hidden'); addTaskForm.classList.remove('hidden');
                 contextFilterContainer.classList.add('hidden'); projectFilterContainer.classList.add('hidden');
                 emptyStateMessage.classList.add('hidden');
                 let itemsToRender = []; let isManagementView = false; let baseTasks = [];
+
+                // --- Determine View and Filter/Sort Data ---
                 switch (currentView) {
                     case 'inbox': baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox'; break;
                     case 'next': baseTasks = tasks.filter(t => t.status === 'next' || t.status === 'project_task'); currentViewTitle.textContent = 'Next Actions'; contextFilterContainer.classList.remove('hidden'); populateSelect(contextFilterSelect, contexts, 'All Contexts', 'all', true); contextFilterSelect.value = currentContextFilter; break;
                     case 'projects': isManagementView = true; currentManagementView = 'projects'; itemsToRender = projects; currentViewTitle.textContent = 'Manage Projects'; break;
                     case 'waiting': baseTasks = tasks.filter(t => t.status === 'waiting'); currentViewTitle.textContent = 'Waiting For'; break;
                     case 'scheduled': baseTasks = tasks.filter(t => t.status === 'scheduled').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)); currentViewTitle.textContent = 'Scheduled'; break;
+                    // *** NEW: Upcoming View Case ***
+                    case 'upcoming':
+                        baseTasks = tasks.filter(t => t.dueDate && !['completed', 'someday', 'reference'].includes(t.status))
+                                         .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); // Sort by due date ascending
+                        currentViewTitle.textContent = 'Upcoming Tasks';
+                        break;
                     case 'someday': baseTasks = tasks.filter(t => t.status === 'someday'); currentViewTitle.textContent = 'Someday/Maybe'; break;
                     case 'reference': baseTasks = tasks.filter(t => t.status === 'reference'); currentViewTitle.textContent = 'Reference'; break;
                     case 'contexts': isManagementView = true; currentManagementView = 'contexts'; itemsToRender = contexts; currentViewTitle.textContent = 'Manage Contexts'; break;
@@ -721,13 +728,23 @@
                     case 'completed': baseTasks = tasks.filter(t => t.status === 'completed').sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0)); currentViewTitle.textContent = 'Completed Tasks'; break;
                     default: currentView = 'inbox'; baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox';
                 }
+
+                // Apply filters if not a management view
                 if (!isManagementView) {
                     itemsToRender = baseTasks;
                     if (currentView === 'next' && currentContextFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.contextId === currentContextFilter); }
                     if (currentView === 'all-tasks' && currentProjectFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.projectId === currentProjectFilter); }
-                    if (!['scheduled', 'completed'].includes(currentView)) { const taskOrderMap = new Map(tasks.map((task, index) => [task.id, index])); itemsToRender.sort((a, b) => (taskOrderMap.get(a.id) ?? Infinity) - (taskOrderMap.get(b.id) ?? Infinity)); }
+                    // Maintain user-defined sort order unless view has its own sorting (scheduled, completed, upcoming)
+                    if (!['scheduled', 'completed', 'upcoming'].includes(currentView)) {
+                        const taskOrderMap = new Map(tasks.map((task, index) => [task.id, index]));
+                        itemsToRender.sort((a, b) => (taskOrderMap.get(a.id) ?? Infinity) - (taskOrderMap.get(b.id) ?? Infinity));
+                    }
                 }
+
+                // Update Sidebar Active State
                 sidebarLinks.forEach(link => { link.classList.remove('active'); if (link.id === `nav-${currentView}`) { link.classList.add('active'); } });
+
+                // Render Items
                 if (isManagementView) {
                     managementItemListUl.classList.remove('hidden'); addTaskForm.classList.add('hidden'); addManagementItemForm.classList.remove('hidden'); newManagementItemNameInput.placeholder = `Add new ${currentManagementView.slice(0, -1)}...`;
                     if (itemsToRender.length === 0) { emptyStateMessage.textContent = `No ${currentManagementView} defined yet.`; emptyStateMessage.classList.remove('hidden'); }
@@ -737,7 +754,7 @@
                     if (itemsToRender.length === 0) { let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`; if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`; if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`; emptyStateMessage.textContent = emptyMsg; emptyStateMessage.classList.remove('hidden'); }
                     else { itemsToRender.forEach(task => { const taskElement = renderTaskItem(task); if (taskElement) { taskListUl.appendChild(taskElement); } }); }
                 }
-                initSortable();
+                initSortable(); // Initialize or destroy sortable based on view
             };
 
 
@@ -798,7 +815,7 @@
             const exportData = () => { /* ... (no changes) ... */
                 console.log("Exporting data...");
                  tasks.forEach(task => { if (!Array.isArray(task.timeLogs)) task.timeLogs = []; });
-                const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.4" } }; // Version bump
+                const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.5" } }; // Version bump
                 try {
                     const jsonString = JSON.stringify(dataToExport, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob);
                     const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0, 10); a.download = `zenith-gtd-backup-${dateStr}.json`;
@@ -839,7 +856,7 @@
 
             // --- Context Menu Functions ---
             // Hides the context menu.
-            const hideContextMenu = () => {
+            const hideContextMenu = () => { /* ... (no changes) ... */
                 if (taskContextMenu) {
                     taskContextMenu.classList.remove('visible');
                 }
@@ -863,77 +880,52 @@
                 });
             };
 
-            // *** NEW: Populates the "Change Status To" list ***
-            const populateStatusList = () => {
-                contextMenuStatusList.innerHTML = ''; // Clear existing items
+            // Populates the "Change Status To" list
+            const populateStatusList = () => { /* ... (no changes) ... */
+                contextMenuStatusList.innerHTML = '';
                 const availableStatuses = [
-                    { value: 'inbox', text: 'Inbox' },
-                    { value: 'next', text: 'Next Action' },
-                    { value: 'project_task', text: 'Project Task' },
-                    { value: 'waiting', text: 'Waiting For' },
-                    { value: 'scheduled', text: 'Scheduled' },
-                    { value: 'someday', text: 'Someday/Maybe' },
+                    { value: 'inbox', text: 'Inbox' }, { value: 'next', text: 'Next Action' },
+                    { value: 'project_task', text: 'Project Task' }, { value: 'waiting', text: 'Waiting For' },
+                    { value: 'scheduled', text: 'Scheduled' }, { value: 'someday', text: 'Someday/Maybe' },
                     { value: 'reference', text: 'Reference' },
-                    // 'completed' is handled by the toggle item
                 ];
-
                 availableStatuses.forEach(statusInfo => {
                     const item = document.createElement('div');
                     item.className = 'context-menu-item status-list-item';
                     item.textContent = statusInfo.text;
-                    item.dataset.status = statusInfo.value; // Store status value
-                    item.addEventListener('click', handleChangeStatus); // Add listener
+                    item.dataset.status = statusInfo.value;
+                    item.addEventListener('click', handleChangeStatus);
                     contextMenuStatusList.appendChild(item);
                 });
             };
 
 
             // Shows and positions the context menu.
-            const showContextMenu = (taskId, x, y) => {
+            const showContextMenu = (taskId, x, y) => { /* ... (no changes) ... */
                 contextMenuTaskId = taskId;
                 const task = getTaskById(taskId);
                 if (!task || !taskContextMenu) return;
-
-                // --- Configure Menu Items ---
-                // Configure Complete/Mark Next Action item
+                // Configure Complete item
                 const completeTextSpan = contextMenuComplete.querySelector('.menu-text');
                 const completeIcon = contextMenuComplete.querySelector('i');
-                if (task.status === 'completed') {
-                    completeTextSpan.textContent = 'Mark as Next Action';
-                    completeIcon.className = 'fas fa-star fa-fw';
-                } else {
-                    completeTextSpan.textContent = 'Mark Complete';
-                    completeIcon.className = 'fas fa-check fa-fw';
-                }
-
-                // *** NEW: Configure Timer item ***
+                if (task.status === 'completed') { completeTextSpan.textContent = 'Mark as Next Action'; completeIcon.className = 'fas fa-star fa-fw'; }
+                else { completeTextSpan.textContent = 'Mark Complete'; completeIcon.className = 'fas fa-check fa-fw'; }
+                // Configure Timer item
                 const timerTextSpan = contextMenuTimer.querySelector('.menu-text');
                 const timerIcon = contextMenuTimer.querySelector('i');
-                const isTimerActive = !!getActiveLog(taskId); // Check if timer is active for this task
-                if (isTimerActive) {
-                    timerTextSpan.textContent = 'Stop Timer';
-                    timerIcon.className = 'fas fa-stop fa-fw text-red-500'; // Stop icon (red)
-                } else {
-                    timerTextSpan.textContent = 'Start Timer';
-                    timerIcon.className = 'fas fa-play fa-fw text-green-500'; // Play icon (green)
-                }
-
-                // *** NEW: Populate Status List ***
+                const isTimerActive = !!getActiveLog(taskId);
+                if (isTimerActive) { timerTextSpan.textContent = 'Stop Timer'; timerIcon.className = 'fas fa-stop fa-fw text-red-500'; }
+                else { timerTextSpan.textContent = 'Start Timer'; timerIcon.className = 'fas fa-play fa-fw text-green-500'; }
+                // Populate submenus/lists
                 populateStatusList();
-
-                // Populate the project submenu
                 populateProjectSubmenu();
-
-                // --- Position Menu ---
+                // Position and show
                 taskContextMenu.style.left = `${x}px`;
                 taskContextMenu.style.top = `${y}px`;
-                taskContextMenu.classList.add('visible'); // Use class to show
-
-                // Adjust position after making it visible
+                taskContextMenu.classList.add('visible');
                 requestAnimationFrame(() => {
                     const menuRect = taskContextMenu.getBoundingClientRect();
-                    const viewportWidth = window.innerWidth;
-                    const viewportHeight = window.innerHeight;
+                    const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight;
                     let adjustedX = x; let adjustedY = y;
                     if (x + menuRect.width > viewportWidth) { adjustedX = x - menuRect.width; }
                     if (y + menuRect.height > viewportHeight) { adjustedY = y - menuRect.height; }
@@ -965,31 +957,23 @@
                 hideContextMenu();
             };
 
-            // *** NEW: Handles clicking the Start/Stop Timer item ***
-            const handleToggleTimer = () => {
+            // Handles clicking the Start/Stop Timer item
+            const handleToggleTimer = () => { /* ... (no changes) ... */
                 if (!contextMenuTaskId) return;
                 const isTimerActive = !!getActiveLog(contextMenuTaskId);
-                if (isTimerActive) {
-                    stopTimer(contextMenuTaskId);
-                } else {
-                    startTimer(contextMenuTaskId);
-                }
+                if (isTimerActive) { stopTimer(contextMenuTaskId); }
+                else { startTimer(contextMenuTaskId); }
                 hideContextMenu();
             };
 
-            // *** NEW: Handles clicking a status in the "Change Status To" list ***
-            const handleChangeStatus = (event) => {
+            // Handles clicking a status in the "Change Status To" list
+            const handleChangeStatus = (event) => { /* ... (no changes) ... */
                  if (!contextMenuTaskId) return;
                  const newStatus = event.target.dataset.status;
                  if (!newStatus) return;
-
-                 // Check if moving to project_task without a project
                  const task = getTaskById(contextMenuTaskId);
-                 if (newStatus === 'project_task' && !task?.projectId) {
-                    alert('Cannot set status to "Project Task" without assigning a project first. Use "Move to Project" instead.');
-                 } else {
-                    updateTask(contextMenuTaskId, { status: newStatus });
-                 }
+                 if (newStatus === 'project_task' && !task?.projectId) { alert('Cannot set status to "Project Task" without assigning a project first. Use "Move to Project" instead.'); }
+                 else { updateTask(contextMenuTaskId, { status: newStatus }); }
                  hideContextMenu();
             };
 
@@ -1000,9 +984,7 @@
                 if (!projectId) return;
                 const task = getTaskById(contextMenuTaskId);
                 let updates = { projectId: projectId };
-                if (task && task.status !== 'completed') {
-                    updates.status = 'project_task'; // Set to project task when moving
-                }
+                if (task && task.status !== 'completed') { updates.status = 'project_task'; }
                 updateTask(contextMenuTaskId, updates);
                 hideContextMenu();
             };
