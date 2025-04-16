@@ -47,7 +47,7 @@
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .log-list-container { max-height: 250px; overflow-y: auto; margin-bottom: 1rem; }
 
-        /* --- Context Menu Styles --- */
+        /* Context Menu Styles */
         #task-context-menu {
             position: absolute;
             z-index: 1000;
@@ -61,59 +61,32 @@
             opacity: 0;
             transition: opacity 0.1s ease-in-out, visibility 0.1s ease-in-out;
         }
-        #task-context-menu.visible {
-            display: block;
-            visibility: visible;
-            opacity: 1;
-        }
-        .context-menu-item, .context-menu-header {
-            display: block;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            color: #374151;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-        }
-        .context-menu-item:hover {
-            background-color: #f3f4f6;
-            color: #1f2937;
-        }
-        .context-menu-item i.fa-fw {
-           margin-right: 0.5rem;
-           text-align: center;
-        }
-        .context-menu-divider {
-            height: 1px;
-            background-color: #e5e7eb;
-            margin: 0.5rem 0;
-        }
-        .context-menu-header {
-            font-weight: 600;
-            color: #6b7280;
-            cursor: default;
-            padding-bottom: 0.25rem;
-            padding-left: 1rem; /* Align with items */
-            padding-right: 1rem;
-        }
-        .context-menu-submenu {
-            max-height: 150px;
-            overflow-y: auto;
-            border-top: 1px solid #e5e7eb;
-            margin-top: 0.5rem;
-            padding-top: 0.5rem;
-        }
-        .context-menu-submenu .context-menu-item {
-            padding-left: 2rem;
-        }
+        #task-context-menu.visible { display: block; visibility: visible; opacity: 1; }
+        .context-menu-item, .context-menu-header { display: block; padding: 0.5rem 1rem; font-size: 0.875rem; color: #374151; cursor: pointer; user-select: none; white-space: nowrap; }
+        .context-menu-item:hover { background-color: #f3f4f6; color: #1f2937; }
+        .context-menu-item i.fa-fw { margin-right: 0.5rem; text-align: center; }
+        .context-menu-divider { height: 1px; background-color: #e5e7eb; margin: 0.5rem 0; }
+        .context-menu-header { font-weight: 600; color: #6b7280; cursor: default; padding-bottom: 0.25rem; padding-left: 1rem; padding-right: 1rem; }
+        .context-menu-submenu { max-height: 150px; overflow-y: auto; border-top: 1px solid #e5e7eb; margin-top: 0.5rem; padding-top: 0.5rem; }
+        .context-menu-submenu .context-menu-item { padding-left: 2rem; }
         .context-menu-submenu::-webkit-scrollbar { width: 5px; }
         .context-menu-submenu::-webkit-scrollbar-track { background: #f9fafb; border-radius: 10px; }
         .context-menu-submenu::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
         .context-menu-submenu::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-        #context-menu-status-list .context-menu-item {
-             padding-left: 2rem;
-        }
+        #context-menu-status-list .context-menu-item { padding-left: 2rem; }
 
+        /* Search Input Styles */
+        #search-input {
+            padding-left: 2.5rem; /* Space for icon */
+        }
+        .search-icon {
+            position: absolute;
+            left: 0.75rem; /* Adjust as needed */
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af; /* gray-400 */
+            pointer-events: none; /* Allow clicking through the icon */
+        }
     </style>
 </head>
 <body class="bg-gray-100">
@@ -151,12 +124,16 @@
         </aside>
 
         <main class="flex-1 flex flex-col overflow-hidden">
-            <header class="bg-white border-b border-gray-200 p-4 flex flex-wrap justify-between items-center flex-shrink-0 gap-2">
+            <header class="bg-white border-b border-gray-200 p-4 flex flex-wrap justify-between items-center flex-shrink-0 gap-4">
                 <div class="flex items-center">
                     <button id="menu-toggle-button" class="md:hidden text-gray-600 hover:text-gray-800 focus:outline-none mr-3"> <i class="fas fa-bars text-xl"></i> </button>
                     <h2 id="current-view-title" class="text-lg font-semibold text-gray-800">Inbox</h2>
                 </div>
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-4 flex-wrap flex-grow md:flex-grow-0">
+                     <div class="relative flex-grow md:flex-grow-0 md:w-64">
+                         <span class="search-icon"> <i class="fas fa-search"></i> </span>
+                         <input type="search" id="search-input" placeholder="Search tasks..." class="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm shadow-sm">
+                     </div>
                     <div id="context-filter-container" class="hidden header-filter-container">
                         <label for="context-filter-select" class="text-sm font-medium text-gray-700 hidden sm:inline">Context:</label>
                         <select id="context-filter-select" class="rounded-md border-gray-300 shadow-sm focus:border-sky-500 focus:ring-sky-500 text-sm py-1 px-2"> <option value="all">All</option> </select>
@@ -339,19 +316,20 @@
             const manualLogDescriptionInput = document.getElementById('manual-log-description');
             const timeLogModalCloseButton = timeLogModal.querySelector('.modal-close');
             const timeLogModalCancelButton = timeLogModal.querySelector('.modal-cancel-button');
-            // Context Menu Elements
             const taskContextMenu = document.getElementById('task-context-menu');
             const contextMenuComplete = document.getElementById('context-menu-complete');
             const contextMenuTimer = document.getElementById('context-menu-timer');
             const contextMenuStatusList = document.getElementById('context-menu-status-list');
             const contextMenuProjectSubmenu = document.getElementById('context-menu-project-submenu');
             const contextMenuDelete = document.getElementById('context-menu-delete');
+            const searchInput = document.getElementById('search-input'); // *** NEW: Search Input ***
 
             // --- State ---
             let currentView = 'inbox';
             let currentManagementView = null;
             let currentContextFilter = 'all';
             let currentProjectFilter = 'all';
+            let currentSearchTerm = ''; // *** NEW: Search Term State ***
             let sortableInstance = null;
             let activeTimerInterval = null;
             let activeTimerTaskId = null;
@@ -413,6 +391,19 @@
                 return (hours * 3600) + (minutes * 60);
              };
             const getTaskById = (id) => tasks.find(task => task.id === id);
+
+            // *** NEW: Debounce Function ***
+            // Limits the rate at which a function can fire.
+            const debounce = (func, delay) => {
+                let timeoutId;
+                return function(...args) {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(() => {
+                        func.apply(this, args);
+                    }, delay);
+                };
+            };
+
 
             // --- Core Task Functions ---
             const addTask = (title) => { /* ... (no changes) ... */
@@ -674,9 +665,11 @@
             };
 
             // --- Sorting Function ---
-            const initSortable = () => { /* ... (no changes) ... */
+            const initSortable = () => { /* ... (updated to disable sort on upcoming view) ... */
                  if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
-                 const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 && currentView !== 'completed' && currentView !== 'upcoming' && !currentManagementView; // Disable sorting for upcoming view too
+                 const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 &&
+                                 !['completed', 'upcoming'].includes(currentView) && // Disable sort for completed and upcoming
+                                 !currentManagementView;
                  if (canSort) {
                      taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'inline-block');
                      sortableInstance = new Sortable(taskListUl, {
@@ -699,7 +692,7 @@
 
             // --- Main Render Function ---
             const render = () => {
-                // console.log("Rendering view:", currentView);
+                // console.log("Rendering view:", currentView, "Search:", currentSearchTerm); // Debug log
                 taskListUl.innerHTML = ''; managementItemListUl.innerHTML = '';
                 taskListUl.classList.add('hidden'); managementItemListUl.classList.add('hidden');
                 addManagementItemForm.classList.add('hidden'); addTaskForm.classList.remove('hidden');
@@ -714,12 +707,7 @@
                     case 'projects': isManagementView = true; currentManagementView = 'projects'; itemsToRender = projects; currentViewTitle.textContent = 'Manage Projects'; break;
                     case 'waiting': baseTasks = tasks.filter(t => t.status === 'waiting'); currentViewTitle.textContent = 'Waiting For'; break;
                     case 'scheduled': baseTasks = tasks.filter(t => t.status === 'scheduled').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)); currentViewTitle.textContent = 'Scheduled'; break;
-                    // *** NEW: Upcoming View Case ***
-                    case 'upcoming':
-                        baseTasks = tasks.filter(t => t.dueDate && !['completed', 'someday', 'reference'].includes(t.status))
-                                         .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); // Sort by due date ascending
-                        currentViewTitle.textContent = 'Upcoming Tasks';
-                        break;
+                    case 'upcoming': baseTasks = tasks.filter(t => t.dueDate && !['completed', 'someday', 'reference'].includes(t.status)).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); currentViewTitle.textContent = 'Upcoming Tasks'; break;
                     case 'someday': baseTasks = tasks.filter(t => t.status === 'someday'); currentViewTitle.textContent = 'Someday/Maybe'; break;
                     case 'reference': baseTasks = tasks.filter(t => t.status === 'reference'); currentViewTitle.textContent = 'Reference'; break;
                     case 'contexts': isManagementView = true; currentManagementView = 'contexts'; itemsToRender = contexts; currentViewTitle.textContent = 'Manage Contexts'; break;
@@ -729,32 +717,60 @@
                     default: currentView = 'inbox'; baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox';
                 }
 
-                // Apply filters if not a management view
+                // Apply view-specific filters (Context/Project) if not a management view
                 if (!isManagementView) {
                     itemsToRender = baseTasks;
                     if (currentView === 'next' && currentContextFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.contextId === currentContextFilter); }
                     if (currentView === 'all-tasks' && currentProjectFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.projectId === currentProjectFilter); }
-                    // Maintain user-defined sort order unless view has its own sorting (scheduled, completed, upcoming)
+
+                    // *** NEW: Apply Search Filter ***
+                    if (currentSearchTerm) {
+                        const lowerSearchTerm = currentSearchTerm.toLowerCase();
+                        itemsToRender = itemsToRender.filter(task => {
+                            // Check task title
+                            if (task.title.toLowerCase().includes(lowerSearchTerm)) return true;
+                            // Check project name (if exists)
+                            if (task.projectId) {
+                                const project = projects.find(p => p.id === task.projectId);
+                                if (project && project.name.toLowerCase().includes(lowerSearchTerm)) return true;
+                            }
+                            // Check context name (if exists)
+                            if (task.contextId) {
+                                const context = contexts.find(c => c.id === task.contextId);
+                                if (context && context.name.toLowerCase().includes(lowerSearchTerm)) return true;
+                            }
+                            return false; // No match
+                        });
+                    }
+
+                    // Maintain user-defined sort order unless view has its own sorting
                     if (!['scheduled', 'completed', 'upcoming'].includes(currentView)) {
                         const taskOrderMap = new Map(tasks.map((task, index) => [task.id, index]));
                         itemsToRender.sort((a, b) => (taskOrderMap.get(a.id) ?? Infinity) - (taskOrderMap.get(b.id) ?? Infinity));
                     }
                 }
 
-                // Update Sidebar Active State
+                // --- Update UI ---
                 sidebarLinks.forEach(link => { link.classList.remove('active'); if (link.id === `nav-${currentView}`) { link.classList.add('active'); } });
 
-                // Render Items
                 if (isManagementView) {
                     managementItemListUl.classList.remove('hidden'); addTaskForm.classList.add('hidden'); addManagementItemForm.classList.remove('hidden'); newManagementItemNameInput.placeholder = `Add new ${currentManagementView.slice(0, -1)}...`;
                     if (itemsToRender.length === 0) { emptyStateMessage.textContent = `No ${currentManagementView} defined yet.`; emptyStateMessage.classList.remove('hidden'); }
                     else { itemsToRender.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => managementItemListUl.appendChild(renderManagementItem(item, currentManagementView.slice(0, -1)))); }
                 } else {
                     taskListUl.classList.remove('hidden');
-                    if (itemsToRender.length === 0) { let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`; if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`; if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`; emptyStateMessage.textContent = emptyMsg; emptyStateMessage.classList.remove('hidden'); }
-                    else { itemsToRender.forEach(task => { const taskElement = renderTaskItem(task); if (taskElement) { taskListUl.appendChild(taskElement); } }); }
+                    if (itemsToRender.length === 0) {
+                        let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`;
+                        if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`;
+                        if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`;
+                        if (currentSearchTerm) emptyMsg += ` matching "${currentSearchTerm}".`; // Update empty message for search
+                        emptyStateMessage.textContent = emptyMsg;
+                        emptyStateMessage.classList.remove('hidden');
+                    } else {
+                        itemsToRender.forEach(task => { const taskElement = renderTaskItem(task); if (taskElement) { taskListUl.appendChild(taskElement); } });
+                    }
                 }
-                initSortable(); // Initialize or destroy sortable based on view
+                initSortable();
             };
 
 
@@ -815,7 +831,7 @@
             const exportData = () => { /* ... (no changes) ... */
                 console.log("Exporting data...");
                  tasks.forEach(task => { if (!Array.isArray(task.timeLogs)) task.timeLogs = []; });
-                const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.5" } }; // Version bump
+                const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.6" } }; // Version bump
                 try {
                     const jsonString = JSON.stringify(dataToExport, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob);
                     const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0, 10); a.download = `zenith-gtd-backup-${dateStr}.json`;
@@ -1009,7 +1025,21 @@
             window.addEventListener('click', (event) => { if (event.target === taskModal) closeModal(); if (event.target === timeLogModal) closeTimeLogModal(); }); // Close modals on outside click
             if (exportDataButton) exportDataButton.addEventListener('click', exportData);
             if (importDataInput) importDataInput.addEventListener('change', importData);
-            sidebarLinks.forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); const view = link.id.replace('nav-', ''); if (view !== currentView) { currentView = view; if (!['projects', 'contexts', 'areas'].includes(view)) currentManagementView = null; currentContextFilter = 'all'; currentProjectFilter = 'all'; render(); } if (sidebar && sidebar.classList.contains('mobile-visible')) closeMobileSidebar(); }); });
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const view = link.id.replace('nav-', '');
+                    if (view !== currentView) {
+                        currentView = view;
+                        if (!['projects', 'contexts', 'areas'].includes(view)) currentManagementView = null;
+                        currentContextFilter = 'all'; currentProjectFilter = 'all';
+                        currentSearchTerm = ''; // *** NEW: Clear search on view change ***
+                        if(searchInput) searchInput.value = ''; // Clear search input field
+                        render();
+                    }
+                    if (sidebar && sidebar.classList.contains('mobile-visible')) closeMobileSidebar();
+                });
+            });
             if (menuToggleButton) menuToggleButton.addEventListener('click', (e) => { e.stopPropagation(); openMobileSidebar(); });
             if (sidebarCloseButton) sidebarCloseButton.addEventListener('click', closeMobileSidebar);
             if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
@@ -1023,7 +1053,7 @@
 
             // Context Menu Action Listeners
             if (contextMenuComplete) contextMenuComplete.addEventListener('click', handleToggleComplete);
-            if (contextMenuTimer) contextMenuTimer.addEventListener('click', handleToggleTimer); // New listener for timer
+            if (contextMenuTimer) contextMenuTimer.addEventListener('click', handleToggleTimer);
             if (contextMenuDelete) contextMenuDelete.addEventListener('click', handleDeleteTask);
             // Listeners for status list items and project submenu items are added dynamically
 
@@ -1039,6 +1069,18 @@
                     hideContextMenu();
                  }
             }, true);
+
+            // *** NEW: Search Input Listener ***
+            if (searchInput) {
+                // Debounce the render function call for search input
+                const debouncedRender = debounce(render, 300); // 300ms delay
+
+                searchInput.addEventListener('input', (e) => {
+                    currentSearchTerm = e.target.value;
+                    debouncedRender(); // Call the debounced render
+                });
+            }
+
 
              // --- Initial Setup ---
              const initiallyActiveTask = tasks.find(task => task.timeLogs?.some(log => log.isActive));
