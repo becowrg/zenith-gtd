@@ -46,7 +46,6 @@
         .timer-active { color: #dc2626; animation: pulse 1.5s infinite ease-in-out; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .log-list-container { max-height: 250px; overflow-y: auto; margin-bottom: 1rem; }
-
         /* Context Menu Styles */
         #task-context-menu {
             position: absolute;
@@ -74,7 +73,6 @@
         .context-menu-submenu::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
         .context-menu-submenu::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
         #context-menu-status-list .context-menu-item { padding-left: 2rem; }
-
         /* Search Input Styles */
         #search-input {
             padding-left: 2.5rem; /* Space for icon */
@@ -86,6 +84,14 @@
             transform: translateY(-50%);
             color: #9ca3af; /* gray-400 */
             pointer-events: none; /* Allow clicking through the icon */
+        }
+        /* Style for export buttons */
+        .export-log-button {
+            background-color: #6366f1; /* indigo-500 */
+            color: white;
+        }
+        .export-log-button:hover {
+            background-color: #4f46e5; /* indigo-600 */
         }
     </style>
 </head>
@@ -117,10 +123,15 @@
             </nav>
             <div class="p-4 border-t border-gray-200 mt-auto space-y-3">
                 <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Data</h2>
-                <button id="export-data-button" class="w-full flex items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 text-sm"> <i class="fas fa-download w-4 h-4 mr-2"></i> Export Data </button>
-                <label for="import-data-input" class="file-input-button w-full justify-center text-sm"> <i class="fas fa-upload w-4 h-4 mr-2"></i> Import Data </label>
+                <button id="export-data-button" class="w-full flex items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 text-sm"> <i class="fas fa-download w-4 h-4 mr-2"></i> Export All Data (JSON) </button>
+                <label for="import-data-input" class="file-input-button w-full justify-center text-sm"> <i class="fas fa-upload w-4 h-4 mr-2"></i> Import Data (JSON) </label>
                 <input type="file" id="import-data-input" accept=".json" class="hidden-input">
-            </div>
+
+                <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Time Log Reports</h2>
+                <button id="export-daily-logs-button" class="export-log-button w-full flex items-center justify-center px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 text-sm"> <i class="fas fa-file-csv w-4 h-4 mr-2"></i> Export Daily Logs (CSV) </button>
+                <button id="export-weekly-logs-button" class="export-log-button w-full flex items-center justify-center px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 text-sm"> <i class="fas fa-file-csv w-4 h-4 mr-2"></i> Export Weekly Logs (CSV) </button>
+                <button id="export-monthly-logs-button" class="export-log-button w-full flex items-center justify-center px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 text-sm"> <i class="fas fa-file-csv w-4 h-4 mr-2"></i> Export Monthly Logs (CSV) </button>
+                </div>
         </aside>
 
         <main class="flex-1 flex flex-col overflow-hidden">
@@ -144,6 +155,7 @@
                     </div>
                 </div>
             </header>
+
             <div class="p-4 border-b border-gray-200 bg-gray-50 flex-shrink-0">
                 <form id="add-task-form" class="flex gap-2">
                     <input type="text" id="new-task-title" placeholder="Capture a new task..." class="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent" required>
@@ -154,6 +166,7 @@
                     <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex-shrink-0"> <i class="fas fa-plus md:mr-1"></i> <span class="hidden md:inline">Add Item</span> </button>
                 </form>
             </div>
+
             <div id="task-list-container" class="flex-1 overflow-y-auto p-4 task-list-container">
                 <p id="empty-state-message" class="text-center text-gray-500 mt-10">No tasks here yet!</p>
                 <ul id="task-list" class="space-y-3"></ul>
@@ -322,51 +335,60 @@
             const contextMenuStatusList = document.getElementById('context-menu-status-list');
             const contextMenuProjectSubmenu = document.getElementById('context-menu-project-submenu');
             const contextMenuDelete = document.getElementById('context-menu-delete');
-            const searchInput = document.getElementById('search-input'); // *** NEW: Search Input ***
+            const searchInput = document.getElementById('search-input');
+            // *** NEW: Time Log Export Buttons ***
+            const exportDailyLogsButton = document.getElementById('export-daily-logs-button');
+            const exportWeeklyLogsButton = document.getElementById('export-weekly-logs-button');
+            const exportMonthlyLogsButton = document.getElementById('export-monthly-logs-button');
+            // *** END NEW ***
 
             // --- State ---
             let currentView = 'inbox';
             let currentManagementView = null;
             let currentContextFilter = 'all';
             let currentProjectFilter = 'all';
-            let currentSearchTerm = ''; // *** NEW: Search Term State ***
+            let currentSearchTerm = '';
             let sortableInstance = null;
             let activeTimerInterval = null;
             let activeTimerTaskId = null;
             let contextMenuTaskId = null;
 
             // --- Data Storage (localStorage) ---
-            const getData = (key, defaultValue = []) => { /* ... (no changes) ... */
-                 const data = localStorage.getItem(key);
-                 try {
-                     const parsedData = data ? JSON.parse(data) : defaultValue;
-                     if (key === 'gtdTasks') {
-                         parsedData.forEach(task => {
-                             if (!task.id) task.id = generateId();
-                             if (!Array.isArray(task.timeLogs)) task.timeLogs = [];
-                             task.timeLogs.forEach(log => {
-                                 if (!log.id) log.id = generateId();
-                                 if (typeof log.isActive === 'undefined') log.isActive = false;
-                             });
-                         });
-                     }
-                     if (['gtdProjects', 'gtdContexts', 'gtdAreas'].includes(key)) {
-                         parsedData.forEach(item => { if (!item.id) item.id = generateId(); });
-                     }
-                     return Array.isArray(parsedData) ? parsedData : defaultValue;
-                 } catch (error) {
-                     console.error(`Error parsing localStorage key "${key}":`, error);
-                     return defaultValue;
-                 }
-             };
-            const saveData = (key, data) => { /* ... (no changes) ... */
-                 try {
-                     localStorage.setItem(key, JSON.stringify(data));
-                 } catch (error) {
-                     console.error(`Error saving data to localStorage key "${key}":`, error);
-                     alert('Error saving data. Local storage might be full or inaccessible.');
-                 }
-             };
+            const getData = (key, defaultValue = []) => {
+                const data = localStorage.getItem(key);
+                try {
+                    const parsedData = data ? JSON.parse(data) : defaultValue;
+                    // Data sanitization/default values
+                    if (key === 'gtdTasks') {
+                        parsedData.forEach(task => {
+                            if (!task.id) task.id = generateId();
+                            if (!Array.isArray(task.timeLogs)) task.timeLogs = [];
+                            // Ensure logs have required fields
+                            task.timeLogs.forEach(log => {
+                                if (!log.id) log.id = generateId();
+                                if (typeof log.isActive === 'undefined') log.isActive = false;
+                                if (typeof log.manual === 'undefined') log.manual = !log.isActive && !log.endTime; // Best guess
+                                if (!log.startTime) log.startTime = new Date(0).toISOString(); // Default to epoch if missing
+                            });
+                        });
+                    }
+                    if (['gtdProjects', 'gtdContexts', 'gtdAreas'].includes(key)) {
+                        parsedData.forEach(item => { if (!item.id) item.id = generateId(); });
+                    }
+                    return Array.isArray(parsedData) ? parsedData : defaultValue;
+                } catch (error) {
+                    console.error(`Error parsing localStorage key "${key}":`, error);
+                    return defaultValue;
+                }
+            };
+            const saveData = (key, data) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(data));
+                } catch (error) {
+                    console.error(`Error saving data to localStorage key "${key}":`, error);
+                    alert('Error saving data. Local storage might be full or inaccessible.');
+                }
+            };
 
             let tasks = getData('gtdTasks');
             let projects = getData('gtdProjects');
@@ -375,719 +397,1073 @@
 
             // --- Utility Functions ---
             const generateId = () => `id_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            const formatDuration = (totalSeconds) => { /* ... (no changes) ... */
-                if (isNaN(totalSeconds) || totalSeconds < 0) { return '0h 0m'; }
+            const formatDuration = (totalSeconds) => {
+               if (isNaN(totalSeconds) || totalSeconds < 0) { return '0h 0m'; }
+               const hours = Math.floor(totalSeconds / 3600);
+               const minutes = Math.floor((totalSeconds % 3600) / 60);
+               return `${hours}h ${minutes}m`;
+            };
+            // *** NEW: Format duration for CSV (HH:MM:SS) ***
+            const formatDurationHMS = (totalSeconds) => {
+                if (isNaN(totalSeconds) || totalSeconds < 0) { return '00:00:00'; }
                 const hours = Math.floor(totalSeconds / 3600);
                 const minutes = Math.floor((totalSeconds % 3600) / 60);
-                return `${hours}h ${minutes}m`;
+                const seconds = Math.floor(totalSeconds % 60);
+                return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             };
-            const parseDurationHHMM = (hhmm) => { /* ... (no changes) ... */
-                if (!hhmm || typeof hhmm !== 'string') return 0;
-                const parts = hhmm.split(':');
-                if (parts.length !== 2) return 0;
-                const hours = parseInt(parts[0], 10);
-                const minutes = parseInt(parts[1], 10);
-                if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes >= 60 || hours < 0) { return 0; }
-                return (hours * 3600) + (minutes * 60);
-             };
+            const parseDurationHHMM = (hhmm) => {
+               if (!hhmm || typeof hhmm !== 'string') return 0;
+               const parts = hhmm.split(':');
+               if (parts.length !== 2) return 0;
+               const hours = parseInt(parts[0], 10);
+               const minutes = parseInt(parts[1], 10);
+               if (isNaN(hours) || isNaN(minutes) || minutes < 0 || minutes >= 60 || hours < 0) { return 0; }
+               return (hours * 3600) + (minutes * 60);
+            };
             const getTaskById = (id) => tasks.find(task => task.id === id);
-
-            // *** NEW: Debounce Function ***
-            // Limits the rate at which a function can fire.
             const debounce = (func, delay) => {
-                let timeoutId;
-                return function(...args) {
-                    clearTimeout(timeoutId);
-                    timeoutId = setTimeout(() => {
-                        func.apply(this, args);
-                    }, delay);
-                };
+               let timeoutId;
+               return function(...args) {
+                   clearTimeout(timeoutId);
+                   timeoutId = setTimeout(() => {
+                       func.apply(this, args);
+                   }, delay);
+               };
             };
-
+            // *** NEW: Function to escape CSV values ***
+            const escapeCsvValue = (value) => {
+                if (value === null || typeof value === 'undefined') {
+                    return '';
+                }
+                const stringValue = String(value);
+                // If the value contains a comma, double quote, or newline, enclose it in double quotes
+                if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+                    // Escape existing double quotes by doubling them
+                    const escapedValue = stringValue.replace(/"/g, '""');
+                    return `"${escapedValue}"`;
+                }
+                return stringValue;
+            };
+            // *** NEW: Function to format date as YYYY-MM-DD ***
+            const formatDateYYYYMMDD = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
 
             // --- Core Task Functions ---
-            const addTask = (title) => { /* ... (no changes) ... */
-                const trimmedTitle = title.trim();
-                if (!trimmedTitle) return;
-                const newTask = { id: generateId(), title: trimmedTitle, notes: '', status: 'inbox', projectId: null, contextId: null, areaId: null, dueDate: null, createdAt: new Date().toISOString(), completedAt: null, timeLogs: [] };
-                tasks.push(newTask);
-                saveData('gtdTasks', tasks);
-                newTaskTitleInput.value = '';
-                render();
+            const addTask = (title) => {
+               const trimmedTitle = title.trim();
+               if (!trimmedTitle) return;
+               const newTask = { id: generateId(), title: trimmedTitle, notes: '', status: 'inbox', projectId: null, contextId: null, areaId: null, dueDate: null, createdAt: new Date().toISOString(), completedAt: null, timeLogs: [] };
+               tasks.push(newTask);
+               saveData('gtdTasks', tasks);
+               newTaskTitleInput.value = '';
+               render();
             };
-            const updateTask = (id, updates) => { /* ... (no changes) ... */
-                let taskUpdated = false;
-                tasks = tasks.map(task => {
-                    if (task.id === id) {
-                        taskUpdated = true;
-                        if ('status' in updates) {
-                            if (updates.status === 'completed' && task.status !== 'completed') { updates.completedAt = new Date().toISOString(); }
-                            else if (updates.status !== 'completed' && task.status === 'completed') { updates.completedAt = null; }
-                        }
-                        if ('projectId' in updates) updates.projectId = updates.projectId || null;
-                        if ('contextId' in updates) updates.contextId = updates.contextId || null;
-                        if ('areaId' in updates) updates.areaId = updates.areaId || null;
-                        if ('dueDate' in updates) updates.dueDate = updates.dueDate || null;
-                        if (!Array.isArray(task.timeLogs)) task.timeLogs = [];
-                        return { ...task, ...updates };
+            const updateTask = (id, updates) => {
+               let taskUpdated = false;
+               tasks = tasks.map(task => {
+                   if (task.id === id) {
+                       taskUpdated = true;
+                       if ('status' in updates) {
+                           if (updates.status === 'completed' && task.status !== 'completed') { updates.completedAt = new Date().toISOString(); }
+                           else if (updates.status !== 'completed' && task.status === 'completed') { updates.completedAt = null; }
+                       }
+                       if ('projectId' in updates) updates.projectId = updates.projectId || null;
+                       if ('contextId' in updates) updates.contextId = updates.contextId || null;
+                       if ('areaId' in updates) updates.areaId = updates.areaId || null;
+                       if ('dueDate' in updates) updates.dueDate = updates.dueDate || null;
+                       if (!Array.isArray(task.timeLogs)) task.timeLogs = []; // Ensure timeLogs exists
+                       return { ...task, ...updates };
+                   }
+                   return task;
+               });
+               if (taskUpdated) { saveData('gtdTasks', tasks); render(); }
+               else { console.error("Task not found for update:", id); }
+            };
+            const deleteTask = (id) => {
+                if (!id) { console.error("deleteTask called with invalid ID."); return; }
+                if (confirm('Are you sure you want to delete this task and all its time logs? This action cannot be undone.')) {
+                    const initialLength = tasks.length;
+                    const filteredTasks = tasks.filter(task => task.id !== id);
+                    const newLength = filteredTasks.length;
+                    if (newLength < initialLength) {
+                        tasks = filteredTasks;
+                        saveData('gtdTasks', tasks);
+                        closeModal();
+                        closeTimeLogModal();
+                        render();
+                    } else {
+                        console.warn(`Task with ID ${id} not found in tasks array during filter.`);
                     }
-                    return task;
-                });
-                if (taskUpdated) { saveData('gtdTasks', tasks); render(); }
-                else { console.error("Task not found for update:", id); }
-            };
-            const deleteTask = (id) => { /* ... (no changes) ... */
-                 if (!id) { console.error("deleteTask called with invalid ID."); return; }
-                 if (confirm('Are you sure you want to delete this task and all its time logs? This action cannot be undone.')) {
-                     const initialLength = tasks.length;
-                     const filteredTasks = tasks.filter(task => task.id !== id);
-                     const newLength = filteredTasks.length;
-                     if (newLength < initialLength) {
-                         tasks = filteredTasks;
-                         saveData('gtdTasks', tasks);
-                         closeModal();
-                         closeTimeLogModal();
-                         render();
-                     } else {
-                         console.warn(`Task with ID ${id} not found in tasks array during filter.`);
-                     }
-                 }
+                }
             };
 
             // --- Management Item Functions ---
-            const addManagementItem = (name) => { /* ... (no changes) ... */
-                const trimmedName = name.trim();
-                if (!trimmedName || !currentManagementView) return;
-                const newItem = { id: generateId(), name: trimmedName };
-                let dataArray, storageKey;
-                switch (currentManagementView) {
-                    case 'projects': dataArray = projects; storageKey = 'gtdProjects'; break;
-                    case 'contexts': dataArray = contexts; storageKey = 'gtdContexts'; break;
-                    case 'areas':    dataArray = areas;    storageKey = 'gtdAreas'; break;
+            const addManagementItem = (name) => {
+               const trimmedName = name.trim();
+               if (!trimmedName || !currentManagementView) return;
+               const newItem = { id: generateId(), name: trimmedName };
+               let dataArray, storageKey;
+               switch (currentManagementView) {
+                   case 'projects': dataArray = projects; storageKey = 'gtdProjects'; break;
+                   case 'contexts': dataArray = contexts; storageKey = 'gtdContexts'; break;
+                   case 'areas':    dataArray = areas;    storageKey = 'gtdAreas'; break;
+                   default: return;
+               }
+               if (dataArray.some(item => item.name.toLowerCase() === trimmedName.toLowerCase())) {
+                   alert(`${currentManagementView.slice(0, -1)} "${trimmedName}" already exists.`); return;
+               }
+               dataArray.push(newItem);
+               saveData(storageKey, dataArray);
+               newManagementItemNameInput.value = '';
+               render();
+            };
+            const deleteManagementItem = (id, type) => {
+                if (!confirm(`Are you sure you want to delete this ${type}? This will remove it from all associated tasks.`)) return;
+                let dataArray, storageKey, taskField;
+                switch (type) {
+                    case 'project': dataArray = projects; storageKey = 'gtdProjects'; taskField = 'projectId'; break;
+                    case 'context': dataArray = contexts; storageKey = 'gtdContexts'; taskField = 'contextId'; break;
+                    case 'area':    dataArray = areas;    storageKey = 'gtdAreas';    taskField = 'areaId'; break;
                     default: return;
                 }
-                if (dataArray.some(item => item.name.toLowerCase() === trimmedName.toLowerCase())) {
-                    alert(`${currentManagementView.slice(0, -1)} "${trimmedName}" already exists.`); return;
-                }
-                dataArray.push(newItem);
-                saveData(storageKey, dataArray);
-                newManagementItemNameInput.value = '';
-                render();
-             };
-            const deleteManagementItem = (id, type) => { /* ... (no changes) ... */
-                 if (!confirm(`Are you sure you want to delete this ${type}? This will remove it from all associated tasks.`)) return;
-                 let dataArray, storageKey, taskField;
-                 switch (type) {
-                     case 'project': dataArray = projects; storageKey = 'gtdProjects'; taskField = 'projectId'; break;
-                     case 'context': dataArray = contexts; storageKey = 'gtdContexts'; taskField = 'contextId'; break;
-                     case 'area':    dataArray = areas;    storageKey = 'gtdAreas';    taskField = 'areaId'; break;
-                     default: return;
-                 }
-                 const initialLength = dataArray.length;
-                 const updatedArray = dataArray.filter(item => item.id !== id);
-                 if (updatedArray.length < initialLength) {
-                     if (type === 'project') projects = updatedArray;
-                     if (type === 'context') contexts = updatedArray;
-                     if (type === 'area')    areas = updatedArray;
-                     saveData(storageKey, updatedArray);
-                     let tasksUpdated = false;
-                     tasks = tasks.map(task => {
-                         if (task[taskField] === id) { tasksUpdated = true; return { ...task, [taskField]: null }; }
-                         return task;
-                     });
-                     if (tasksUpdated) { saveData('gtdTasks', tasks); }
-                     render();
-                 }
-            };
-
-            // --- Time Logging Functions ---
-            const calculateTotalTime = (taskId) => { /* ... (no changes) ... */
-                const task = getTaskById(taskId);
-                if (!task || !task.timeLogs) return 0;
-                return task.timeLogs.reduce((total, log) => total + (log.duration || 0), 0);
-            };
-            const getActiveLog = (taskId) => { /* ... (no changes) ... */
-                 const task = getTaskById(taskId);
-                 return task?.timeLogs?.find(log => log.isActive);
-            };
-            const startTimer = (taskId) => { /* ... (no changes) ... */
-                 console.log("Attempting to start timer for task:", taskId);
-                 if (activeTimerTaskId && activeTimerTaskId !== taskId) { stopTimer(activeTimerTaskId, false); }
-                 if (getActiveLog(taskId)) { console.warn("Timer already active for task:", taskId); return; }
-                 const task = getTaskById(taskId);
-                 if (!task) return;
-                 const newLog = { id: generateId(), startTime: new Date().toISOString(), endTime: null, duration: 0, description: 'Active Timer', manual: false, isActive: true };
-                 task.timeLogs.push(newLog);
-                 activeTimerTaskId = taskId;
-                 saveData('gtdTasks', tasks);
-                 renderTimeLogModal(taskId);
-                 render();
-                 startActiveTimerUpdates(taskId);
-                 console.log("Timer started for task:", taskId);
-            };
-            const stopTimer = (taskId, shouldRender = true) => { /* ... (no changes) ... */
-                 console.log("Attempting to stop timer for task:", taskId);
-                 const task = getTaskById(taskId);
-                 const activeLog = getActiveLog(taskId);
-                 if (!task || !activeLog) {
-                     console.warn("No active timer found to stop for task:", taskId);
-                     if (activeTimerTaskId === taskId) { activeTimerTaskId = null; stopActiveTimerUpdates(); }
-                     return;
-                 }
-                 const startTime = new Date(activeLog.startTime);
-                 const endTime = new Date();
-                 const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
-                 activeLog.endTime = endTime.toISOString();
-                 activeLog.duration = durationSeconds > 0 ? durationSeconds : 0;
-                 activeLog.isActive = false;
-                 if (activeLog.description === 'Active Timer') { activeLog.description = ''; }
-                 activeTimerTaskId = null;
-                 stopActiveTimerUpdates();
-                 saveData('gtdTasks', tasks);
-                 if (shouldRender) { renderTimeLogModal(taskId); render(); }
-                 console.log("Timer stopped for task:", taskId);
-            };
-            const addManualLog = (taskId, dateStr, durationStr, description) => { /* ... (no changes) ... */
-                const task = getTaskById(taskId);
-                if (!task) return false;
-                const durationSeconds = parseDurationHHMM(durationStr);
-                if (durationSeconds <= 0) { alert("Invalid duration format. Please use HH:MM (e.g., 01:30) and ensure it's greater than 0."); return false; }
-                if (!dateStr) { alert("Please select a date for the manual entry."); return false; }
-                const newLog = { id: generateId(), startTime: new Date(dateStr + 'T00:00:00').toISOString(), endTime: null, duration: durationSeconds, description: description.trim() || 'Manual Entry', manual: true, isActive: false };
-                task.timeLogs.push(newLog);
-                saveData('gtdTasks', tasks);
-                renderTimeLogModal(taskId);
-                render();
-                return true;
-             };
-            const deleteLog = (taskId, logId) => { /* ... (no changes) ... */
-                const task = getTaskById(taskId);
-                if (!task) return;
-                const initialLogCount = task.timeLogs.length;
-                task.timeLogs = task.timeLogs.filter(log => log.id !== logId);
-                if (task.timeLogs.length < initialLogCount) {
-                    saveData('gtdTasks', tasks);
-                    renderTimeLogModal(taskId);
+                const initialLength = dataArray.length;
+                const updatedArray = dataArray.filter(item => item.id !== id);
+                if (updatedArray.length < initialLength) {
+                    if (type === 'project') projects = updatedArray;
+                    if (type === 'context') contexts = updatedArray;
+                    if (type === 'area')    areas = updatedArray;
+                    saveData(storageKey, updatedArray);
+                    let tasksUpdated = false;
+                    tasks = tasks.map(task => {
+                        if (task[taskField] === id) { tasksUpdated = true; return { ...task, [taskField]: null }; }
+                        return task;
+                    });
+                    if (tasksUpdated) { saveData('gtdTasks', tasks); }
                     render();
                 }
             };
 
-            // --- Active Timer UI Update Functions ---
-            const startActiveTimerUpdates = (taskId) => { /* ... (no changes) ... */
+            // --- Time Logging Functions ---
+            const calculateTotalTime = (taskId) => {
+               const task = getTaskById(taskId);
+               if (!task || !task.timeLogs) return 0;
+               return task.timeLogs.reduce((total, log) => total + (log.duration || 0), 0);
+            };
+            const getActiveLog = (taskId) => {
+                const task = getTaskById(taskId);
+                return task?.timeLogs?.find(log => log.isActive);
+            };
+            const startTimer = (taskId) => {
+                console.log("Attempting to start timer for task:", taskId);
+                if (activeTimerTaskId && activeTimerTaskId !== taskId) { stopTimer(activeTimerTaskId, false); } // Stop other timers
+                if (getActiveLog(taskId)) { console.warn("Timer already active for task:", taskId); return; }
+                const task = getTaskById(taskId);
+                if (!task) return;
+                const newLog = { id: generateId(), startTime: new Date().toISOString(), endTime: null, duration: 0, description: 'Active Timer', manual: false, isActive: true };
+                task.timeLogs.push(newLog);
+                activeTimerTaskId = taskId;
+                saveData('gtdTasks', tasks);
+                renderTimeLogModal(taskId); // Update modal if open
+                render(); // Update main task list UI
+                startActiveTimerUpdates(taskId);
+                console.log("Timer started for task:", taskId);
+            };
+            const stopTimer = (taskId, shouldRender = true) => {
+                console.log("Attempting to stop timer for task:", taskId);
+                const task = getTaskById(taskId);
+                const activeLog = getActiveLog(taskId);
+                if (!task || !activeLog) {
+                    console.warn("No active timer found to stop for task:", taskId);
+                    if (activeTimerTaskId === taskId) { activeTimerTaskId = null; stopActiveTimerUpdates(); } // Clean up if state is inconsistent
+                    return;
+                }
+                const startTime = new Date(activeLog.startTime);
+                const endTime = new Date();
+                const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+                activeLog.endTime = endTime.toISOString();
+                activeLog.duration = durationSeconds > 0 ? durationSeconds : 0;
+                activeLog.isActive = false;
+                if (activeLog.description === 'Active Timer') { activeLog.description = ''; } // Clear placeholder description
+                activeTimerTaskId = null;
                 stopActiveTimerUpdates();
-                activeTimerInterval = setInterval(() => {
-                    const activeLog = getActiveLog(taskId);
-                    if (!activeLog) { stopActiveTimerUpdates(); return; }
-                    if (!timeLogModal.classList.contains('hidden') && timeLogTaskId.value === taskId) {
-                        const currentDuration = Math.round((new Date().getTime() - new Date(activeLog.startTime).getTime()) / 1000);
-                        const totalSeconds = calculateTotalTime(taskId) - (activeLog.duration || 0) + currentDuration;
-                         totalLoggedTimeSpan.textContent = formatDuration(totalSeconds);
-                    }
-                }, 1000);
-             };
-            const stopActiveTimerUpdates = () => { /* ... (no changes) ... */
-                if (activeTimerInterval) { clearInterval(activeTimerInterval); activeTimerInterval = null; }
+                saveData('gtdTasks', tasks);
+                if (shouldRender) {
+                    renderTimeLogModal(taskId); // Update modal if open
+                    render(); // Update main task list UI
+                }
+                console.log("Timer stopped for task:", taskId);
+            };
+            const addManualLog = (taskId, dateStr, durationStr, description) => {
+               const task = getTaskById(taskId);
+               if (!task) return false;
+               const durationSeconds = parseDurationHHMM(durationStr);
+               if (durationSeconds <= 0) { alert("Invalid duration format. Please use HH:MM (e.g., 01:30) and ensure it's greater than 0."); return false; }
+               if (!dateStr) { alert("Please select a date for the manual entry."); return false; }
+               // Ensure the date string is interpreted correctly (set time to noon to avoid timezone issues)
+               const logDate = new Date(dateStr + 'T12:00:00');
+               if (isNaN(logDate.getTime())) { alert("Invalid date selected."); return false; }
+
+               const newLog = { id: generateId(), startTime: logDate.toISOString(), endTime: null, duration: durationSeconds, description: description.trim() || 'Manual Entry', manual: true, isActive: false };
+               task.timeLogs.push(newLog);
+               saveData('gtdTasks', tasks);
+               renderTimeLogModal(taskId);
+               render(); // Update main UI in case total time changed
+               return true;
+            };
+            const deleteLog = (taskId, logId) => {
+               const task = getTaskById(taskId);
+               if (!task) return;
+               const initialLogCount = task.timeLogs.length;
+               task.timeLogs = task.timeLogs.filter(log => log.id !== logId);
+               if (task.timeLogs.length < initialLogCount) {
+                   saveData('gtdTasks', tasks);
+                   renderTimeLogModal(taskId);
+                   render(); // Update main UI
+               }
             };
 
+            // --- Active Timer UI Update Functions ---
+            const startActiveTimerUpdates = (taskId) => {
+               stopActiveTimerUpdates(); // Clear any existing interval
+               activeTimerInterval = setInterval(() => {
+                   const activeLog = getActiveLog(taskId);
+                   if (!activeLog) { stopActiveTimerUpdates(); return; } // Stop if log disappeared
+
+                   // Update task list item timer display
+                   const taskLi = taskListUl.querySelector(`.task-item[data-task-id="${taskId}"] .task-total-time`);
+                   if (taskLi) {
+                       const currentDuration = Math.round((new Date().getTime() - new Date(activeLog.startTime).getTime()) / 1000);
+                       const totalSeconds = calculateTotalTime(taskId) - (activeLog.duration || 0) + currentDuration;
+                       taskLi.innerHTML = `<i class="far fa-clock mr-1"></i>${formatDuration(totalSeconds)}`;
+                       taskLi.classList.add('timer-active'); // Ensure class is present
+                   }
+
+                   // Update time log modal if it's open for the active task
+                   if (!timeLogModal.classList.contains('hidden') && timeLogTaskId.value === taskId) {
+                       const currentDuration = Math.round((new Date().getTime() - new Date(activeLog.startTime).getTime()) / 1000);
+                       const totalSeconds = calculateTotalTime(taskId) - (activeLog.duration || 0) + currentDuration;
+                       totalLoggedTimeSpan.textContent = formatDuration(totalSeconds);
+                   }
+               }, 1000);
+            };
+            const stopActiveTimerUpdates = () => {
+               if (activeTimerInterval) { clearInterval(activeTimerInterval); activeTimerInterval = null; }
+            };
 
             // --- Rendering Functions ---
-            const getStatusBadge = (status) => { /* ... (no changes) ... */
-                let badgeClass = ''; let badgeText = '';
-                switch (status) {
-                    case 'inbox': badgeClass = 'bg-gray-200 text-gray-700'; badgeText = 'Inbox'; break;
-                    case 'next': badgeClass = 'bg-yellow-100 text-yellow-700'; badgeText = 'Next'; break;
-                    case 'project_task': badgeClass = 'bg-blue-100 text-blue-700'; badgeText = 'Project Task'; break;
-                    case 'waiting': badgeClass = 'bg-orange-100 text-orange-700'; badgeText = 'Waiting'; break;
-                    case 'scheduled': badgeClass = 'bg-purple-100 text-purple-700'; badgeText = 'Scheduled'; break;
-                    case 'someday': badgeClass = 'bg-teal-100 text-teal-700'; badgeText = 'Someday'; break;
-                    case 'reference': badgeClass = 'bg-green-100 text-green-700'; badgeText = 'Reference'; break;
-                    case 'completed': return '';
-                    default: return '';
-                }
-                return `<span class="text-xs ${badgeClass} px-2 py-0.5 rounded-full whitespace-nowrap">${badgeText}</span>`;
-             };
-            const populateSelect = (selectElement, items, defaultOptionText = 'None', valueIfNone = '', addAllOption = false, allOptionValue = 'all', allOptionText = 'All') => { /* ... (no changes) ... */
-                if (!selectElement) return;
-                selectElement.innerHTML = '';
-                if (addAllOption) { const allOption = document.createElement('option'); allOption.value = allOptionValue; allOption.textContent = allOptionText; selectElement.appendChild(allOption); }
-                if (defaultOptionText) { const defaultOption = document.createElement('option'); defaultOption.value = valueIfNone; defaultOption.textContent = defaultOptionText; selectElement.appendChild(defaultOption); }
-                items.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; selectElement.appendChild(option); });
-             };
-            const renderTaskItem = (task) => { /* ... (no changes) ... */
-                const li = document.createElement('li');
-                if (!task.id) { console.warn("Task missing ID during render:", task); task.id = generateId(); }
-                 li.className = `task-item bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2 ${task.status === 'completed' ? 'completed' : ''}`;
-                li.dataset.taskId = task.id;
-                const isActionable = ['next', 'project_task', 'scheduled', 'waiting', 'completed'].includes(task.status);
-                const checkboxHtml = isActionable ? `<input type="checkbox" class="task-complete-checkbox h-5 w-5 text-sky-600 border-gray-300 rounded focus:ring-sky-500 cursor-pointer flex-shrink-0" ${task.status === 'completed' ? 'checked' : ''}>` : `<div class="w-5 h-5 flex-shrink-0"></div>`;
-                let statusBadgeHtml = getStatusBadge(task.status);
-                let projectBadgeHtml = ''; let contextBadgeHtml = ''; let dateBadgeHtml = ''; let timeBadgeHtml = ''; let completedDateHtml = '';
-                const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
-                const context = task.contextId ? contexts.find(c => c.id === task.contextId) : null;
-                const totalSeconds = calculateTotalTime(task.id);
-                const isActive = !!getActiveLog(task.id);
-                if (project) projectBadgeHtml = `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">${project.name}</span>`;
-                if (context) contextBadgeHtml = `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full whitespace-nowrap">@${context.name}</span>`;
-                if (task.dueDate) { try { const date = new Date(task.dueDate); const timezoneOffset = date.getTimezoneOffset() * 60000; const localDate = new Date(date.getTime() + timezoneOffset); const formattedDate = localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); dateBadgeHtml = `<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-calendar-alt mr-1"></i>${formattedDate}</span>`; } catch (e) { console.error("Error formatting due date:", task.dueDate, e); } }
-                 if (task.status === 'completed' && task.completedAt) { try { const completedDate = new Date(task.completedAt); const formattedCompletedDate = completedDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); completedDateHtml = `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-check-circle mr-1"></i>${formattedCompletedDate}</span>`; } catch (e) { console.error("Error formatting completed date:", task.completedAt, e); } }
-                if (totalSeconds > 0 || isActive) { const timeText = formatDuration(totalSeconds); const activeClass = isActive ? 'timer-active bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'; timeBadgeHtml = `<span class="task-total-time text-xs ${activeClass} px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-clock mr-1"></i>${timeText}</span>`; }
-                const detailsHtml = [statusBadgeHtml, completedDateHtml, projectBadgeHtml, contextBadgeHtml, dateBadgeHtml, timeBadgeHtml].filter(Boolean).join('');
-                const dragHandleHtml = `<span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>`;
-                li.innerHTML = `
-                    <div class="flex items-center gap-3 flex-grow min-w-0">
-                        ${dragHandleHtml} ${checkboxHtml} <div class="flex-grow overflow-hidden">
-                            <span class="task-title text-gray-800 cursor-pointer hover:text-sky-600 truncate block" title="${task.title}">${task.title}</span>
-                            <div class="text-xs text-gray-500 mt-1 task-details-line"> ${detailsHtml || '&nbsp;'} </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center flex-shrink-0 gap-1">
-                        <button class="time-log-button text-gray-400 hover:text-indigo-600 px-2 py-1 rounded" title="View Time Logs"> <i class="fas fa-history"></i> </button>
-                        <button class="edit-task-button text-gray-400 hover:text-sky-600 px-2 py-1 rounded" title="Edit Task"> <i class="fas fa-pencil-alt"></i> </button>
-                    </div>`;
-                li.querySelector('.edit-task-button').addEventListener('click', (e) => { e.stopPropagation(); openModal(task.id); });
-                li.querySelector('.task-title').addEventListener('click', () => openModal(task.id));
-                li.querySelector('.time-log-button').addEventListener('click', (e) => { e.stopPropagation(); openTimeLogModal(task.id); });
-                const checkbox = li.querySelector('.task-complete-checkbox');
-                if (checkbox) { checkbox.addEventListener('change', (e) => { const previousStatus = task.status === 'project_task' ? 'project_task' : 'next'; const newStatus = e.target.checked ? 'completed' : previousStatus; updateTask(task.id, { status: newStatus }); }); }
-                li.addEventListener('contextmenu', handleContextMenu);
-                return li;
-             };
-            const renderManagementItem = (item, type) => { /* ... (no changes) ... */
-                const li = document.createElement('li');
-                li.className = 'bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2';
-                li.dataset.itemId = item.id;
-                li.dataset.itemType = type;
-                li.innerHTML = `
-                    <span class="text-gray-800 flex-grow truncate" title="${item.name}">${item.name}</span>
-                    <button class="delete-item-button text-red-400 hover:text-red-600 px-2 py-1 rounded flex-shrink-0" title="Delete ${type}"> <i class="fas fa-trash-alt"></i> </button>`;
-                li.querySelector('.delete-item-button').addEventListener('click', () => deleteManagementItem(item.id, type));
-                return li;
+            const getStatusBadge = (status) => {
+               let badgeClass = ''; let badgeText = '';
+               switch (status) {
+                   case 'inbox': badgeClass = 'bg-gray-200 text-gray-700'; badgeText = 'Inbox'; break;
+                   case 'next': badgeClass = 'bg-yellow-100 text-yellow-700'; badgeText = 'Next'; break;
+                   case 'project_task': badgeClass = 'bg-blue-100 text-blue-700'; badgeText = 'Project Task'; break;
+                   case 'waiting': badgeClass = 'bg-orange-100 text-orange-700'; badgeText = 'Waiting'; break;
+                   case 'scheduled': badgeClass = 'bg-purple-100 text-purple-700'; badgeText = 'Scheduled'; break;
+                   case 'someday': badgeClass = 'bg-teal-100 text-teal-700'; badgeText = 'Someday'; break;
+                   case 'reference': badgeClass = 'bg-green-100 text-green-700'; badgeText = 'Reference'; break;
+                   case 'completed': return ''; // No badge for completed
+                   default: return '';
+               }
+               return `<span class="text-xs ${badgeClass} px-2 py-0.5 rounded-full whitespace-nowrap">${badgeText}</span>`;
+            };
+            const populateSelect = (selectElement, items, defaultOptionText = 'None', valueIfNone = '', addAllOption = false, allOptionValue = 'all', allOptionText = 'All') => {
+               if (!selectElement) return;
+               selectElement.innerHTML = ''; // Clear existing options
+               if (addAllOption) { const allOption = document.createElement('option'); allOption.value = allOptionValue; allOption.textContent = allOptionText; selectElement.appendChild(allOption); }
+               if (defaultOptionText) { const defaultOption = document.createElement('option'); defaultOption.value = valueIfNone; defaultOption.textContent = defaultOptionText; selectElement.appendChild(defaultOption); }
+               items.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.name; selectElement.appendChild(option); });
+            };
+            const renderTaskItem = (task) => {
+               const li = document.createElement('li');
+               if (!task.id) { console.warn("Task missing ID during render:", task); task.id = generateId(); } // Assign ID if missing
+               li.className = `task-item bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2 ${task.status === 'completed' ? 'completed' : ''}`;
+               li.dataset.taskId = task.id;
+
+               const isActionable = ['next', 'project_task', 'scheduled', 'waiting', 'completed'].includes(task.status);
+               const checkboxHtml = isActionable ? `<input type="checkbox" class="task-complete-checkbox h-5 w-5 text-sky-600 border-gray-300 rounded focus:ring-sky-500 cursor-pointer flex-shrink-0" ${task.status === 'completed' ? 'checked' : ''}>` : `<div class="w-5 h-5 flex-shrink-0"></div>`; // Placeholder for non-actionable
+
+               let statusBadgeHtml = getStatusBadge(task.status);
+               let projectBadgeHtml = ''; let contextBadgeHtml = ''; let dateBadgeHtml = ''; let timeBadgeHtml = ''; let completedDateHtml = '';
+
+               const project = task.projectId ? projects.find(p => p.id === task.projectId) : null;
+               const context = task.contextId ? contexts.find(c => c.id === task.contextId) : null;
+               const totalSeconds = calculateTotalTime(task.id);
+               const isActive = !!getActiveLog(task.id);
+
+               if (project) projectBadgeHtml = `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full whitespace-nowrap">${project.name}</span>`;
+               if (context) contextBadgeHtml = `<span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full whitespace-nowrap">@${context.name}</span>`;
+               if (task.dueDate) { try { const date = new Date(task.dueDate); const timezoneOffset = date.getTimezoneOffset() * 60000; const localDate = new Date(date.getTime() + timezoneOffset); const formattedDate = localDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); dateBadgeHtml = `<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-calendar-alt mr-1"></i>${formattedDate}</span>`; } catch (e) { console.error("Error formatting due date:", task.dueDate, e); } }
+               if (task.status === 'completed' && task.completedAt) { try { const completedDate = new Date(task.completedAt); const formattedCompletedDate = completedDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); completedDateHtml = `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-check-circle mr-1"></i>${formattedCompletedDate}</span>`; } catch (e) { console.error("Error formatting completed date:", task.completedAt, e); } }
+               if (totalSeconds > 0 || isActive) {
+                   const timeText = formatDuration(totalSeconds);
+                   const activeClass = isActive ? 'timer-active bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700';
+                   timeBadgeHtml = `<span class="task-total-time text-xs ${activeClass} px-2 py-0.5 rounded-full whitespace-nowrap"><i class="far fa-clock mr-1"></i>${timeText}</span>`;
+               }
+
+               const detailsHtml = [statusBadgeHtml, completedDateHtml, projectBadgeHtml, contextBadgeHtml, dateBadgeHtml, timeBadgeHtml].filter(Boolean).join('');
+               const dragHandleHtml = `<span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>`;
+
+               li.innerHTML = `
+                   <div class="flex items-center gap-3 flex-grow min-w-0">
+                       ${dragHandleHtml}
+                       ${checkboxHtml}
+                       <div class="flex-grow overflow-hidden">
+                           <span class="task-title text-gray-800 cursor-pointer hover:text-sky-600 truncate block" title="${task.title}">${task.title}</span>
+                           <div class="text-xs text-gray-500 mt-1 task-details-line">
+                               ${detailsHtml || '&nbsp;'} </div>
+                       </div>
+                   </div>
+                   <div class="flex items-center flex-shrink-0 gap-1">
+                       <button class="time-log-button text-gray-400 hover:text-indigo-600 px-2 py-1 rounded" title="View Time Logs"> <i class="fas fa-history"></i> </button>
+                       <button class="edit-task-button text-gray-400 hover:text-sky-600 px-2 py-1 rounded" title="Edit Task"> <i class="fas fa-pencil-alt"></i> </button>
+                   </div>`;
+
+               // Attach event listeners
+               li.querySelector('.edit-task-button').addEventListener('click', (e) => { e.stopPropagation(); openModal(task.id); });
+               li.querySelector('.task-title').addEventListener('click', () => openModal(task.id));
+               li.querySelector('.time-log-button').addEventListener('click', (e) => { e.stopPropagation(); openTimeLogModal(task.id); });
+               const checkbox = li.querySelector('.task-complete-checkbox');
+               if (checkbox) {
+                   checkbox.addEventListener('change', (e) => {
+                       const previousStatus = task.status === 'project_task' ? 'project_task' : 'next'; // Default to 'next' if not project
+                       const newStatus = e.target.checked ? 'completed' : previousStatus;
+                       updateTask(task.id, { status: newStatus });
+                   });
+               }
+               li.addEventListener('contextmenu', handleContextMenu); // Add context menu listener
+
+               return li;
+            };
+            const renderManagementItem = (item, type) => {
+               const li = document.createElement('li');
+               li.className = 'bg-white p-3 rounded-md shadow-sm border border-gray-200 flex items-center justify-between gap-2';
+               li.dataset.itemId = item.id;
+               li.dataset.itemType = type;
+               li.innerHTML = `
+                   <span class="text-gray-800 flex-grow truncate" title="${item.name}">${item.name}</span>
+                   <button class="delete-item-button text-red-400 hover:text-red-600 px-2 py-1 rounded flex-shrink-0" title="Delete ${type}"> <i class="fas fa-trash-alt"></i> </button>`;
+               li.querySelector('.delete-item-button').addEventListener('click', () => deleteManagementItem(item.id, type));
+               return li;
             };
 
             // --- Sorting Function ---
-            const initSortable = () => { /* ... (updated to disable sort on upcoming view) ... */
-                 if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
-                 const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 &&
-                                 !['completed', 'upcoming'].includes(currentView) && // Disable sort for completed and upcoming
-                                 !currentManagementView;
-                 if (canSort) {
-                     taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'inline-block');
-                     sortableInstance = new Sortable(taskListUl, {
-                         animation: 150, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen', handle: '.drag-handle',
-                         onEnd: (evt) => {
-                             const orderedTaskIds = Array.from(evt.to.children).map(li => li.dataset.taskId);
-                             const taskMap = new Map(tasks.map(task => [task.id, task]));
-                             const reorderedTasks = orderedTaskIds.map(id => taskMap.get(id)).filter(Boolean);
-                             const currentViewTaskIds = new Set(orderedTaskIds);
-                             tasks.forEach(task => { if (!currentViewTaskIds.has(task.id)) { reorderedTasks.push(task); } });
-                             if (reorderedTasks.length === tasks.length) { tasks = reorderedTasks; saveData('gtdTasks', tasks); }
-                             else { console.error("Task list length mismatch after sorting. Reverting."); render(); }
-                         }
-                     });
-                 } else {
-                     taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'none');
-                 }
-            };
+            const initSortable = () => {
+                if (sortableInstance) { sortableInstance.destroy(); sortableInstance = null; }
 
+                const canSort = !taskListUl.classList.contains('hidden') && taskListUl.children.length > 0 &&
+                                !['completed', 'upcoming', 'scheduled'].includes(currentView) && // Disable sort for completed, upcoming, scheduled
+                                !currentManagementView; // Disable sort in management views
+
+                if (canSort) {
+                    // Show drag handles only if sorting is enabled
+                    taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'inline-block');
+                    sortableInstance = new Sortable(taskListUl, {
+                        animation: 150,
+                        ghostClass: 'sortable-ghost',
+                        chosenClass: 'sortable-chosen',
+                        handle: '.drag-handle', // Use the handle for dragging
+                        onEnd: (evt) => {
+                            const orderedTaskIds = Array.from(evt.to.children).map(li => li.dataset.taskId);
+                            const taskMap = new Map(tasks.map(task => [task.id, task]));
+                            const reorderedTasks = orderedTaskIds.map(id => taskMap.get(id)).filter(Boolean); // Get tasks in new order
+
+                            // Get IDs of tasks NOT in the current view to append them later
+                            const currentViewTaskIds = new Set(orderedTaskIds);
+                            tasks.forEach(task => {
+                                if (!currentViewTaskIds.has(task.id)) {
+                                    reorderedTasks.push(task);
+                                }
+                            });
+
+                            // Basic validation before saving
+                            if (reorderedTasks.length === tasks.length) {
+                                tasks = reorderedTasks;
+                                saveData('gtdTasks', tasks);
+                                // No need to re-render immediately, visual order is already updated
+                            } else {
+                                console.error("Task list length mismatch after sorting. Reverting.");
+                                render(); // Re-render to fix potential issues
+                            }
+                        }
+                    });
+                } else {
+                    // Hide drag handles if sorting is disabled for the current view
+                    taskListUl.querySelectorAll('.task-item .drag-handle').forEach(handle => handle.style.display = 'none');
+                }
+            };
 
             // --- Main Render Function ---
             const render = () => {
-                // console.log("Rendering view:", currentView, "Search:", currentSearchTerm); // Debug log
-                taskListUl.innerHTML = ''; managementItemListUl.innerHTML = '';
-                taskListUl.classList.add('hidden'); managementItemListUl.classList.add('hidden');
-                addManagementItemForm.classList.add('hidden'); addTaskForm.classList.remove('hidden');
-                contextFilterContainer.classList.add('hidden'); projectFilterContainer.classList.add('hidden');
-                emptyStateMessage.classList.add('hidden');
-                let itemsToRender = []; let isManagementView = false; let baseTasks = [];
+               // console.log("Rendering view:", currentView, "Search:", currentSearchTerm); // Debug log
+               taskListUl.innerHTML = ''; managementItemListUl.innerHTML = '';
+               taskListUl.classList.add('hidden'); managementItemListUl.classList.add('hidden');
+               addManagementItemForm.classList.add('hidden'); addTaskForm.classList.remove('hidden');
+               contextFilterContainer.classList.add('hidden'); projectFilterContainer.classList.add('hidden');
+               emptyStateMessage.classList.add('hidden');
 
-                // --- Determine View and Filter/Sort Data ---
-                switch (currentView) {
-                    case 'inbox': baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox'; break;
-                    case 'next': baseTasks = tasks.filter(t => t.status === 'next' || t.status === 'project_task'); currentViewTitle.textContent = 'Next Actions'; contextFilterContainer.classList.remove('hidden'); populateSelect(contextFilterSelect, contexts, 'All Contexts', 'all', true); contextFilterSelect.value = currentContextFilter; break;
-                    case 'projects': isManagementView = true; currentManagementView = 'projects'; itemsToRender = projects; currentViewTitle.textContent = 'Manage Projects'; break;
-                    case 'waiting': baseTasks = tasks.filter(t => t.status === 'waiting'); currentViewTitle.textContent = 'Waiting For'; break;
-                    case 'scheduled': baseTasks = tasks.filter(t => t.status === 'scheduled').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)); currentViewTitle.textContent = 'Scheduled'; break;
-                    case 'upcoming': baseTasks = tasks.filter(t => t.dueDate && !['completed', 'someday', 'reference'].includes(t.status)).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); currentViewTitle.textContent = 'Upcoming Tasks'; break;
-                    case 'someday': baseTasks = tasks.filter(t => t.status === 'someday'); currentViewTitle.textContent = 'Someday/Maybe'; break;
-                    case 'reference': baseTasks = tasks.filter(t => t.status === 'reference'); currentViewTitle.textContent = 'Reference'; break;
-                    case 'contexts': isManagementView = true; currentManagementView = 'contexts'; itemsToRender = contexts; currentViewTitle.textContent = 'Manage Contexts'; break;
-                    case 'areas': isManagementView = true; currentManagementView = 'areas'; itemsToRender = areas; currentViewTitle.textContent = 'Manage Areas'; break;
-                    case 'all-tasks': baseTasks = tasks.filter(t => t.status !== 'completed'); currentViewTitle.textContent = 'All Tasks'; projectFilterContainer.classList.remove('hidden'); populateSelect(projectFilterSelect, projects, 'All Projects', 'all', true); projectFilterSelect.value = currentProjectFilter; break;
-                    case 'completed': baseTasks = tasks.filter(t => t.status === 'completed').sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0)); currentViewTitle.textContent = 'Completed Tasks'; break;
-                    default: currentView = 'inbox'; baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox';
-                }
+               let itemsToRender = []; let isManagementView = false; let baseTasks = [];
 
-                // Apply view-specific filters (Context/Project) if not a management view
-                if (!isManagementView) {
-                    itemsToRender = baseTasks;
-                    if (currentView === 'next' && currentContextFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.contextId === currentContextFilter); }
-                    if (currentView === 'all-tasks' && currentProjectFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.projectId === currentProjectFilter); }
+               // --- Determine View and Filter/Sort Data ---
+               switch (currentView) {
+                   case 'inbox': baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox'; break;
+                   case 'next': baseTasks = tasks.filter(t => t.status === 'next' || t.status === 'project_task'); currentViewTitle.textContent = 'Next Actions'; contextFilterContainer.classList.remove('hidden'); populateSelect(contextFilterSelect, contexts, 'All Contexts', 'all', true); contextFilterSelect.value = currentContextFilter; break;
+                   case 'projects': isManagementView = true; currentManagementView = 'projects'; itemsToRender = projects; currentViewTitle.textContent = 'Manage Projects'; break;
+                   case 'waiting': baseTasks = tasks.filter(t => t.status === 'waiting'); currentViewTitle.textContent = 'Waiting For'; break;
+                   case 'scheduled': baseTasks = tasks.filter(t => t.status === 'scheduled').sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0)); currentViewTitle.textContent = 'Scheduled'; break; // Sort by due date
+                   case 'upcoming': baseTasks = tasks.filter(t => t.dueDate && !['completed', 'someday', 'reference'].includes(t.status)).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)); currentViewTitle.textContent = 'Upcoming Tasks'; break; // Sort by due date
+                   case 'someday': baseTasks = tasks.filter(t => t.status === 'someday'); currentViewTitle.textContent = 'Someday/Maybe'; break;
+                   case 'reference': baseTasks = tasks.filter(t => t.status === 'reference'); currentViewTitle.textContent = 'Reference'; break;
+                   case 'contexts': isManagementView = true; currentManagementView = 'contexts'; itemsToRender = contexts; currentViewTitle.textContent = 'Manage Contexts'; break;
+                   case 'areas': isManagementView = true; currentManagementView = 'areas'; itemsToRender = areas; currentViewTitle.textContent = 'Manage Areas'; break;
+                   case 'all-tasks': baseTasks = tasks.filter(t => t.status !== 'completed'); currentViewTitle.textContent = 'All Tasks'; projectFilterContainer.classList.remove('hidden'); populateSelect(projectFilterSelect, projects, 'All Projects', 'all', true); projectFilterSelect.value = currentProjectFilter; break;
+                   case 'completed': baseTasks = tasks.filter(t => t.status === 'completed').sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0)); currentViewTitle.textContent = 'Completed Tasks'; break; // Sort by completion date desc
+                   default: currentView = 'inbox'; baseTasks = tasks.filter(t => t.status === 'inbox'); currentViewTitle.textContent = 'Inbox';
+               }
 
-                    // *** NEW: Apply Search Filter ***
-                    if (currentSearchTerm) {
-                        const lowerSearchTerm = currentSearchTerm.toLowerCase();
-                        itemsToRender = itemsToRender.filter(task => {
-                            // Check task title
-                            if (task.title.toLowerCase().includes(lowerSearchTerm)) return true;
-                            // Check project name (if exists)
-                            if (task.projectId) {
-                                const project = projects.find(p => p.id === task.projectId);
-                                if (project && project.name.toLowerCase().includes(lowerSearchTerm)) return true;
-                            }
-                            // Check context name (if exists)
-                            if (task.contextId) {
-                                const context = contexts.find(c => c.id === task.contextId);
-                                if (context && context.name.toLowerCase().includes(lowerSearchTerm)) return true;
-                            }
-                            return false; // No match
-                        });
-                    }
+               // Apply view-specific filters (Context/Project) if not a management view
+               if (!isManagementView) {
+                   itemsToRender = baseTasks;
+                   if (currentView === 'next' && currentContextFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.contextId === currentContextFilter); }
+                   if (currentView === 'all-tasks' && currentProjectFilter !== 'all') { itemsToRender = itemsToRender.filter(task => task.projectId === currentProjectFilter); }
 
-                    // Maintain user-defined sort order unless view has its own sorting
-                    if (!['scheduled', 'completed', 'upcoming'].includes(currentView)) {
-                        const taskOrderMap = new Map(tasks.map((task, index) => [task.id, index]));
-                        itemsToRender.sort((a, b) => (taskOrderMap.get(a.id) ?? Infinity) - (taskOrderMap.get(b.id) ?? Infinity));
-                    }
-                }
+                   // Apply Search Filter
+                   if (currentSearchTerm) {
+                       const lowerSearchTerm = currentSearchTerm.toLowerCase();
+                       itemsToRender = itemsToRender.filter(task => {
+                           if (task.title.toLowerCase().includes(lowerSearchTerm)) return true;
+                           if (task.projectId) {
+                               const project = projects.find(p => p.id === task.projectId);
+                               if (project && project.name.toLowerCase().includes(lowerSearchTerm)) return true;
+                           }
+                           if (task.contextId) {
+                               const context = contexts.find(c => c.id === task.contextId);
+                               if (context && context.name.toLowerCase().includes(lowerSearchTerm)) return true;
+                           }
+                           return false;
+                       });
+                   }
 
-                // --- Update UI ---
-                sidebarLinks.forEach(link => { link.classList.remove('active'); if (link.id === `nav-${currentView}`) { link.classList.add('active'); } });
+                   // Maintain user-defined sort order unless view has its own sorting (scheduled, completed, upcoming)
+                   if (!['scheduled', 'completed', 'upcoming'].includes(currentView)) {
+                       const taskOrderMap = new Map(tasks.map((task, index) => [task.id, index]));
+                       itemsToRender.sort((a, b) => (taskOrderMap.get(a.id) ?? Infinity) - (taskOrderMap.get(b.id) ?? Infinity));
+                   }
+               }
 
-                if (isManagementView) {
-                    managementItemListUl.classList.remove('hidden'); addTaskForm.classList.add('hidden'); addManagementItemForm.classList.remove('hidden'); newManagementItemNameInput.placeholder = `Add new ${currentManagementView.slice(0, -1)}...`;
-                    if (itemsToRender.length === 0) { emptyStateMessage.textContent = `No ${currentManagementView} defined yet.`; emptyStateMessage.classList.remove('hidden'); }
-                    else { itemsToRender.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => managementItemListUl.appendChild(renderManagementItem(item, currentManagementView.slice(0, -1)))); }
-                } else {
-                    taskListUl.classList.remove('hidden');
-                    if (itemsToRender.length === 0) {
-                        let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`;
-                        if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`;
-                        if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`;
-                        if (currentSearchTerm) emptyMsg += ` matching "${currentSearchTerm}".`; // Update empty message for search
-                        emptyStateMessage.textContent = emptyMsg;
-                        emptyStateMessage.classList.remove('hidden');
-                    } else {
-                        itemsToRender.forEach(task => { const taskElement = renderTaskItem(task); if (taskElement) { taskListUl.appendChild(taskElement); } });
-                    }
-                }
-                initSortable();
+               // --- Update UI ---
+               sidebarLinks.forEach(link => { link.classList.remove('active'); if (link.id === `nav-${currentView}`) { link.classList.add('active'); } });
+
+               if (isManagementView) {
+                   managementItemListUl.classList.remove('hidden'); addTaskForm.classList.add('hidden'); addManagementItemForm.classList.remove('hidden'); newManagementItemNameInput.placeholder = `Add new ${currentManagementView.slice(0, -1)}...`;
+                   if (itemsToRender.length === 0) { emptyStateMessage.textContent = `No ${currentManagementView} defined yet.`; emptyStateMessage.classList.remove('hidden'); }
+                   else { itemsToRender.sort((a, b) => a.name.localeCompare(b.name)).forEach(item => managementItemListUl.appendChild(renderManagementItem(item, currentManagementView.slice(0, -1)))); }
+               } else {
+                   taskListUl.classList.remove('hidden');
+                   if (itemsToRender.length === 0) {
+                       let emptyMsg = `No tasks in ${currentViewTitle.textContent}.`;
+                       if (currentView === 'next' && currentContextFilter !== 'all') emptyMsg += ` with the selected context.`;
+                       if (currentView === 'all-tasks' && currentProjectFilter !== 'all') emptyMsg += ` for the selected project.`;
+                       if (currentSearchTerm) emptyMsg += ` matching "${currentSearchTerm}".`;
+                       emptyStateMessage.textContent = emptyMsg;
+                       emptyStateMessage.classList.remove('hidden');
+                   } else {
+                       itemsToRender.forEach(task => { const taskElement = renderTaskItem(task); if (taskElement) { taskListUl.appendChild(taskElement); } });
+                   }
+               }
+               initSortable(); // Initialize or update sortable behavior
             };
-
 
             // --- Modal Functions ---
-            const openModal = (taskId = null) => { /* ... (no changes) ... */
-                if (!editTaskProject || !editTaskContext || !editTaskArea) { console.error("Modal select elements not found!"); return; }
-                populateSelect(editTaskProject, projects, 'None', ''); populateSelect(editTaskContext, contexts, 'None', ''); populateSelect(editTaskArea, areas, 'None', '');
-                const task = getTaskById(taskId);
-                if (!task) { console.error("Task not found for modal:", taskId); return; }
-                modalTitle.textContent = 'Edit Task'; editTaskId.value = task.id; editTaskTitle.value = task.title; editTaskNotes.value = task.notes || ''; editTaskStatus.value = task.status; editTaskProject.value = task.projectId || ''; editTaskContext.value = task.contextId || ''; editTaskArea.value = task.areaId || ''; editTaskDueDate.value = task.dueDate || '';
-                deleteTaskButton.classList.remove('hidden'); deleteTaskButton.onclick = () => deleteTask(taskId); // Assigns the specific taskId here
-                taskModal.style.display = 'flex';
+            const openModal = (taskId = null) => {
+               if (!editTaskProject || !editTaskContext || !editTaskArea) { console.error("Modal select elements not found!"); return; }
+               populateSelect(editTaskProject, projects, 'None', ''); populateSelect(editTaskContext, contexts, 'None', ''); populateSelect(editTaskArea, areas, 'None', '');
+
+               const task = getTaskById(taskId);
+               if (!task) { console.error("Task not found for modal:", taskId); return; }
+
+               modalTitle.textContent = 'Edit Task';
+               editTaskId.value = task.id;
+               editTaskTitle.value = task.title;
+               editTaskNotes.value = task.notes || '';
+               editTaskStatus.value = task.status;
+               editTaskProject.value = task.projectId || '';
+               editTaskContext.value = task.contextId || '';
+               editTaskArea.value = task.areaId || '';
+               editTaskDueDate.value = task.dueDate || '';
+
+               deleteTaskButton.classList.remove('hidden');
+               deleteTaskButton.onclick = () => deleteTask(taskId); // Assigns the specific taskId here
+
+               taskModal.style.display = 'flex';
             };
-            const closeModal = () => { /* ... (no changes) ... */
-                taskModal.style.display = 'none'; editTaskForm.reset(); editTaskId.value = ''; deleteTaskButton.classList.add('hidden'); deleteTaskButton.onclick = null;
+            const closeModal = () => {
+               taskModal.style.display = 'none';
+               editTaskForm.reset();
+               editTaskId.value = '';
+               deleteTaskButton.classList.add('hidden');
+               deleteTaskButton.onclick = null; // Remove the specific handler
             };
 
             // --- Time Log Modal Functions ---
-            const renderLogItem = (log, taskId) => { /* ... (no changes) ... */
-                const li = document.createElement('li');
-                li.className = 'log-item text-sm text-gray-700 py-1.5 px-2 border-b border-gray-100 flex justify-between items-center gap-2';
-                li.dataset.logId = log.id;
-                const logDate = log.startTime ? new Date(log.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A';
-                const durationText = formatDuration(log.duration || 0);
-                const descriptionText = log.description || (log.manual ? 'Manual Entry' : 'Tracked Time');
-                const typeIcon = log.manual ? '<i class="fas fa-pencil-alt text-blue-500" title="Manual Entry"></i>' : '<i class="fas fa-stopwatch text-green-500" title="Timer Entry"></i>';
-                li.innerHTML = `
-                    <div class="flex-grow flex items-center gap-2 overflow-hidden"> <span class="flex-shrink-0 w-5 text-center">${typeIcon}</span> <span class="font-medium w-16 flex-shrink-0">${logDate}</span> <span class="truncate" title="${descriptionText}">${descriptionText}</span> </div>
-                    <div class="flex items-center gap-2 flex-shrink-0"> <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">${durationText}</span> <button class="delete-log-button text-red-400 hover:text-red-600 px-1 py-0.5 rounded" title="Delete Log Entry"> <i class="fas fa-times"></i> </button> </div>`;
-                li.querySelector('.delete-log-button').addEventListener('click', (e) => { e.stopPropagation(); if (confirm('Are you sure you want to delete this time log entry?')) { deleteLog(taskId, log.id); } });
-                return li;
-             };
-            const renderTimeLogModal = (taskId) => { /* ... (no changes) ... */
-                 const task = getTaskById(taskId); if (!task) return;
-                 timeLogTaskId.value = taskId; timeLogModalTitle.textContent = `Time Logs for: ${task.title}`; timeLogListUl.innerHTML = '';
-                 const logs = task.timeLogs || []; const totalSeconds = calculateTotalTime(taskId); const activeLog = getActiveLog(taskId);
-                 let displayTotalSeconds = totalSeconds;
-                 if (activeLog) { const currentDuration = Math.round((new Date().getTime() - new Date(activeLog.startTime).getTime()) / 1000); displayTotalSeconds = totalSeconds - (activeLog.duration || 0) + currentDuration; }
-                 totalLoggedTimeSpan.textContent = formatDuration(displayTotalSeconds);
-                 if (logs.length === 0) { noLogsMessage.classList.remove('hidden'); }
-                 else { noLogsMessage.classList.add('hidden'); logs.sort((a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0)).forEach(log => timeLogListUl.appendChild(renderLogItem(log, taskId))); }
-                 if (activeLog) { startTimerButton.classList.add('hidden'); stopTimerButton.classList.remove('hidden'); }
-                 else { startTimerButton.classList.remove('hidden'); stopTimerButton.classList.add('hidden'); }
-                 addManualLogForm.reset();
-                 try { manualLogDateInput.valueAsDate = new Date(); }
-                 catch (e) { console.error("Error setting default date:", e); const today = new Date(); const meteorite = today.getFullYear(); const mm = String(today.getMonth() + 1).padStart(2, '0'); const dd = String(today.getDate()).padStart(2, '0'); manualLogDateInput.value = `${yyyy}-${mm}-${dd}`; }
-            };
-            const openTimeLogModal = (taskId) => { /* ... (no changes) ... */
-                renderTimeLogModal(taskId); timeLogModal.style.display = 'flex';
-                if (activeTimerTaskId === taskId && getActiveLog(taskId)) { startActiveTimerUpdates(taskId); }
-            };
-            const closeTimeLogModal = () => { /* ... (no changes) ... */
-                timeLogModal.style.display = 'none'; timeLogTaskId.value = ''; addManualLogForm.reset(); stopActiveTimerUpdates();
-            };
+            const renderLogItem = (log, taskId) => {
+               const li = document.createElement('li');
+               li.className = 'log-item text-sm text-gray-700 py-1.5 px-2 border-b border-gray-100 flex justify-between items-center gap-2';
+               li.dataset.logId = log.id;
 
+               const logDate = log.startTime ? new Date(log.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A';
+               const durationText = formatDuration(log.duration || 0);
+               const descriptionText = log.description || (log.manual ? 'Manual Entry' : 'Tracked Time');
+               const typeIcon = log.manual ? '<i class="fas fa-pencil-alt text-blue-500" title="Manual Entry"></i>' : '<i class="fas fa-stopwatch text-green-500" title="Timer Entry"></i>';
+
+               li.innerHTML = `
+                   <div class="flex-grow flex items-center gap-2 overflow-hidden">
+                       <span class="flex-shrink-0 w-5 text-center">${typeIcon}</span>
+                       <span class="font-medium w-16 flex-shrink-0">${logDate}</span>
+                       <span class="truncate" title="${descriptionText}">${descriptionText}</span>
+                   </div>
+                   <div class="flex items-center gap-2 flex-shrink-0">
+                       <span class="text-xs bg-gray-100 px-1.5 py-0.5 rounded">${durationText}</span>
+                       <button class="delete-log-button text-red-400 hover:text-red-600 px-1 py-0.5 rounded" title="Delete Log Entry"> <i class="fas fa-times"></i> </button>
+                   </div>`;
+
+               li.querySelector('.delete-log-button').addEventListener('click', (e) => {
+                   e.stopPropagation();
+                   if (confirm('Are you sure you want to delete this time log entry?')) {
+                       deleteLog(taskId, log.id);
+                   }
+               });
+               return li;
+            };
+            const renderTimeLogModal = (taskId) => {
+                const task = getTaskById(taskId); if (!task) return;
+
+                timeLogTaskId.value = taskId;
+                timeLogModalTitle.textContent = `Time Logs for: ${task.title}`;
+                timeLogListUl.innerHTML = ''; // Clear previous logs
+
+                const logs = task.timeLogs || [];
+                const totalSeconds = calculateTotalTime(taskId);
+                const activeLog = getActiveLog(taskId);
+
+                let displayTotalSeconds = totalSeconds;
+                if (activeLog) {
+                    // Calculate current duration for the active timer
+                    const currentDuration = Math.round((new Date().getTime() - new Date(activeLog.startTime).getTime()) / 1000);
+                    displayTotalSeconds = totalSeconds - (activeLog.duration || 0) + currentDuration; // Adjust total for display
+                }
+
+                totalLoggedTimeSpan.textContent = formatDuration(displayTotalSeconds);
+
+                if (logs.length === 0) {
+                    noLogsMessage.classList.remove('hidden');
+                } else {
+                    noLogsMessage.classList.add('hidden');
+                    // Sort logs by start time, descending
+                    logs.sort((a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0))
+                        .forEach(log => timeLogListUl.appendChild(renderLogItem(log, taskId)));
+                }
+
+                // Update timer buttons state
+                if (activeLog) {
+                    startTimerButton.classList.add('hidden');
+                    stopTimerButton.classList.remove('hidden');
+                } else {
+                    startTimerButton.classList.remove('hidden');
+                    stopTimerButton.classList.add('hidden');
+                }
+
+                // Reset manual log form and set default date
+                addManualLogForm.reset();
+                try {
+                    manualLogDateInput.valueAsDate = new Date(); // Set to today
+                } catch (e) {
+                    console.error("Error setting default date:", e);
+                    // Fallback for browsers that don't support valueAsDate well
+                    const today = new Date();
+                    const yyyy = today.getFullYear();
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    manualLogDateInput.value = `${yyyy}-${mm}-${dd}`;
+                }
+            };
+            const openTimeLogModal = (taskId) => {
+               renderTimeLogModal(taskId);
+               timeLogModal.style.display = 'flex';
+               // Ensure timer updates start if the modal is opened for the active task
+               if (activeTimerTaskId === taskId && getActiveLog(taskId)) {
+                   startActiveTimerUpdates(taskId);
+               }
+            };
+            const closeTimeLogModal = () => {
+               timeLogModal.style.display = 'none';
+               timeLogTaskId.value = '';
+               addManualLogForm.reset();
+               stopActiveTimerUpdates(); // Stop updates when modal closes
+            };
 
             // --- Import/Export Functions ---
-            const exportData = () => { /* ... (no changes) ... */
-                console.log("Exporting data...");
-                 tasks.forEach(task => { if (!Array.isArray(task.timeLogs)) task.timeLogs = []; });
-                const dataToExport = { tasks: tasks, projects: projects, contexts: contexts, areas: areas, metadata: { exportedAt: new Date().toISOString(), appName: "Zenith GTD", version: "1.6" } }; // Version bump
-                try {
-                    const jsonString = JSON.stringify(dataToExport, null, 2); const blob = new Blob([jsonString], { type: 'application/json' }); const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; const dateStr = new Date().toISOString().slice(0, 10); a.download = `zenith-gtd-backup-${dateStr}.json`;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); console.log("Data exported successfully.");
-                } catch (error) { console.error("Error exporting data:", error); alert("An error occurred while exporting data."); }
+            const exportData = () => {
+               console.log("Exporting data...");
+               // Ensure timeLogs array exists on all tasks before export
+               tasks.forEach(task => { if (!Array.isArray(task.timeLogs)) task.timeLogs = []; });
+               const dataToExport = {
+                   tasks: tasks,
+                   projects: projects,
+                   contexts: contexts,
+                   areas: areas,
+                   metadata: {
+                       exportedAt: new Date().toISOString(),
+                       appName: "Zenith Todo",
+                       version: "1.7" // Version bump for new feature
+                   }
+               };
+               try {
+                   const jsonString = JSON.stringify(dataToExport, null, 2); // Pretty print JSON
+                   const blob = new Blob([jsonString], { type: 'application/json' });
+                   const url = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = url;
+                   const dateStr = new Date().toISOString().slice(0, 10);
+                   a.download = `zenith-todo-backup-${dateStr}.json`;
+                   document.body.appendChild(a);
+                   a.click();
+                   document.body.removeChild(a);
+                   URL.revokeObjectURL(url);
+                   console.log("Data exported successfully.");
+               } catch (error) {
+                   console.error("Error exporting data:", error);
+                   alert("An error occurred while exporting data.");
+               }
             };
-            const importData = (event) => { /* ... (no changes) ... */
-                console.log("Import file selected..."); const file = event.target.files[0]; if (!file) { console.log("No file selected."); return; }
-                if (file.type !== "application/json") { alert("Invalid file type. Please select a '.json' file."); event.target.value = null; return; }
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    try {
-                        const importedData = JSON.parse(e.target.result);
-                        if (typeof importedData !== 'object' || importedData === null || !Array.isArray(importedData.tasks) || !Array.isArray(importedData.projects) || !Array.isArray(importedData.contexts) || !Array.isArray(importedData.areas)) { throw new Error("Invalid JSON structure. Required arrays (tasks, projects, contexts, areas) missing or invalid."); }
-                        if (confirm("Importing this file will OVERWRITE all current data (tasks, projects, contexts, areas, time logs). Are you sure?")) {
-                            console.log("User confirmed import.");
-                            tasks = (importedData.tasks || []).map(task => ({ ...task, id: task.id || generateId(), timeLogs: (Array.isArray(task.timeLogs) ? task.timeLogs : []).map(log => ({ ...log, id: log.id || generateId(), isActive: typeof log.isActive === 'boolean' ? log.isActive : false })) }));
-                            projects = (importedData.projects || []).map(p => ({ ...p, id: p.id || generateId() })); contexts = (importedData.contexts || []).map(c => ({ ...c, id: c.id || generateId() })); areas = (importedData.areas || []).map(a => ({ ...a, id: a.id || generateId() }));
-                            saveData('gtdTasks', tasks); saveData('gtdProjects', projects); saveData('gtdContexts', contexts); saveData('gtdAreas', areas);
-                            console.log("Data imported and saved."); alert("Data imported successfully!");
-                            currentView = 'inbox'; currentContextFilter = 'all'; currentProjectFilter = 'all'; activeTimerTaskId = null; stopActiveTimerUpdates(); render();
-                        } else { console.log("User cancelled import."); }
-                    } catch (error) { console.error("Error importing data:", error); alert(`Failed to import data: ${error.message}. Please ensure the file is a valid JSON backup from Zenith GTD.`); }
-                    finally { event.target.value = null; }
-                };
-                reader.onerror = (e) => { console.error("Error reading file:", e); alert("An error occurred reading the selected file."); event.target.value = null; };
-                reader.readAsText(file);
+            const importData = (event) => {
+               console.log("Import file selected...");
+               const file = event.target.files[0];
+               if (!file) { console.log("No file selected."); return; }
+               if (file.type !== "application/json") { alert("Invalid file type. Please select a '.json' file."); event.target.value = null; return; }
+
+               const reader = new FileReader();
+               reader.onload = (e) => {
+                   try {
+                       const importedData = JSON.parse(e.target.result);
+                       // Basic validation
+                       if (typeof importedData !== 'object' || importedData === null ||
+                           !Array.isArray(importedData.tasks) || !Array.isArray(importedData.projects) ||
+                           !Array.isArray(importedData.contexts) || !Array.isArray(importedData.areas)) {
+                           throw new Error("Invalid JSON structure. Required arrays (tasks, projects, contexts, areas) missing or invalid.");
+                       }
+
+                       if (confirm("Importing this file will OVERWRITE all current data (tasks, projects, contexts, areas, time logs). Are you sure?")) {
+                           console.log("User confirmed import.");
+                           // Process imported data with validation/defaults
+                           tasks = (importedData.tasks || []).map(task => ({
+                               ...task,
+                               id: task.id || generateId(), // Ensure ID exists
+                               timeLogs: (Array.isArray(task.timeLogs) ? task.timeLogs : []).map(log => ({
+                                   ...log,
+                                   id: log.id || generateId(), // Ensure log ID exists
+                                   isActive: typeof log.isActive === 'boolean' ? log.isActive : false, // Default isActive
+                                   manual: typeof log.manual === 'boolean' ? log.manual : !log.isActive && !log.endTime, // Guess manual
+                                   startTime: log.startTime || new Date(0).toISOString() // Default startTime
+                               }))
+                           }));
+                           projects = (importedData.projects || []).map(p => ({ ...p, id: p.id || generateId() }));
+                           contexts = (importedData.contexts || []).map(c => ({ ...c, id: c.id || generateId() }));
+                           areas = (importedData.areas || []).map(a => ({ ...a, id: a.id || generateId() }));
+
+                           // Save imported data
+                           saveData('gtdTasks', tasks);
+                           saveData('gtdProjects', projects);
+                           saveData('gtdContexts', contexts);
+                           saveData('gtdAreas', areas);
+
+                           console.log("Data imported and saved.");
+                           alert("Data imported successfully!");
+
+                           // Reset state and render
+                           currentView = 'inbox';
+                           currentContextFilter = 'all';
+                           currentProjectFilter = 'all';
+                           activeTimerTaskId = null; // Reset active timer
+                           stopActiveTimerUpdates();
+                           render();
+                       } else {
+                           console.log("User cancelled import.");
+                       }
+                   } catch (error) {
+                       console.error("Error importing data:", error);
+                       alert(`Failed to import data: ${error.message}. Please ensure the file is a valid JSON backup from Zenith Todo.`);
+                   } finally {
+                       event.target.value = null; // Clear the file input
+                   }
+               };
+               reader.onerror = (e) => {
+                   console.error("Error reading file:", e);
+                   alert("An error occurred reading the selected file.");
+                   event.target.value = null;
+               };
+               reader.readAsText(file);
             };
 
+            // *** NEW: Time Log Export Function ***
+            const exportTimeLogs = (period) => {
+                console.log(`Exporting ${period} time logs...`);
+                const now = new Date();
+                let startDate, endDate;
+                let filenamePeriod = '';
+
+                // Set start and end dates based on the period
+                switch (period) {
+                    case 'daily':
+                        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0); // Start of today
+                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999); // End of today
+                        filenamePeriod = `daily-${formatDateYYYYMMDD(now)}`;
+                        break;
+                    case 'weekly':
+                        const dayOfWeek = now.getDay(); // 0 (Sun) - 6 (Sat)
+                        const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1); // Adjust to Monday
+                        startDate = new Date(now.setDate(diff));
+                        startDate.setHours(0, 0, 0, 0); // Start of Monday
+                        endDate = new Date(startDate);
+                        endDate.setDate(startDate.getDate() + 6);
+                        endDate.setHours(23, 59, 59, 999); // End of Sunday
+                        filenamePeriod = `weekly-${formatDateYYYYMMDD(startDate)}-to-${formatDateYYYYMMDD(endDate)}`;
+                        break;
+                    case 'monthly':
+                        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0); // Start of current month
+                        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999); // End of current month
+                        filenamePeriod = `monthly-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                        break;
+                    default:
+                        console.error("Invalid export period:", period);
+                        return;
+                }
+
+                console.log(`Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+
+                const logsToExport = [];
+                tasks.forEach(task => {
+                    if (task.timeLogs && task.timeLogs.length > 0) {
+                        task.timeLogs.forEach(log => {
+                            // Skip active timers as they don't have a final duration/date yet
+                            if (log.isActive) return;
+
+                            try {
+                                const logDate = new Date(log.startTime);
+                                // Check if logDate is valid and within the range
+                                if (!isNaN(logDate.getTime()) && logDate >= startDate && logDate <= endDate) {
+                                    logsToExport.push({
+                                        taskTitle: task.title,
+                                        logDate: formatDateYYYYMMDD(logDate),
+                                        durationSeconds: log.duration || 0,
+                                        description: log.description || (log.manual ? 'Manual Entry' : 'Tracked Time'),
+                                        type: log.manual ? 'Manual' : 'Timer'
+                                    });
+                                }
+                            } catch (e) {
+                                console.warn(`Skipping log due to invalid date: ${log.startTime}`, log);
+                            }
+                        });
+                    }
+                });
+
+                if (logsToExport.length === 0) {
+                    alert(`No completed time logs found for the ${period} period.`);
+                    console.log(`No logs found for ${period} export.`);
+                    return;
+                }
+
+                // Sort logs by date, then task title
+                logsToExport.sort((a, b) => {
+                    if (a.logDate < b.logDate) return -1;
+                    if (a.logDate > b.logDate) return 1;
+                    if (a.taskTitle.toLowerCase() < b.taskTitle.toLowerCase()) return -1;
+                    if (a.taskTitle.toLowerCase() > b.taskTitle.toLowerCase()) return 1;
+                    return 0;
+                });
+
+                // Generate CSV content
+                const csvHeader = ["Task Title", "Date", "Duration (HH:MM:SS)", "Description", "Type"].map(escapeCsvValue).join(',');
+                const csvRows = logsToExport.map(log => [
+                    escapeCsvValue(log.taskTitle),
+                    escapeCsvValue(log.logDate),
+                    escapeCsvValue(formatDurationHMS(log.durationSeconds)),
+                    escapeCsvValue(log.description),
+                    escapeCsvValue(log.type)
+                ].join(','));
+
+                const csvContent = `${csvHeader}\n${csvRows.join('\n')}`;
+
+                // Trigger download
+                try {
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `zenith-timelogs-${filenamePeriod}.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    console.log(`${period} time logs exported successfully.`);
+                } catch (error) {
+                    console.error(`Error exporting ${period} time logs:`, error);
+                    alert(`An error occurred while exporting ${period} time logs.`);
+                }
+            };
 
             // --- Mobile Menu Functions ---
-            const openMobileSidebar = () => { /* ... (no changes) ... */
-                if (sidebar && sidebarOverlay) { sidebar.classList.add('mobile-visible'); sidebarOverlay.classList.add('visible'); document.body.classList.add('overflow-hidden'); }
+            const openMobileSidebar = () => {
+               if (sidebar && sidebarOverlay) { sidebar.classList.add('mobile-visible'); sidebarOverlay.classList.add('visible'); document.body.classList.add('overflow-hidden'); }
             };
-            const closeMobileSidebar = () => { /* ... (no changes) ... */
-                if (sidebar && sidebarOverlay) { sidebar.classList.remove('mobile-visible'); sidebarOverlay.classList.remove('visible'); document.body.classList.remove('overflow-hidden'); }
+            const closeMobileSidebar = () => {
+               if (sidebar && sidebarOverlay) { sidebar.classList.remove('mobile-visible'); sidebarOverlay.classList.remove('visible'); document.body.classList.remove('overflow-hidden'); }
             };
 
             // --- Context Menu Functions ---
-            // Hides the context menu.
-            const hideContextMenu = () => { /* ... (no changes) ... */
-                if (taskContextMenu) {
-                    taskContextMenu.classList.remove('visible');
-                }
-                contextMenuTaskId = null;
+            const hideContextMenu = () => {
+               if (taskContextMenu) { taskContextMenu.classList.remove('visible'); }
+               contextMenuTaskId = null; // Clear the context task ID
             };
+            const populateProjectSubmenu = () => {
+               contextMenuProjectSubmenu.innerHTML = ''; // Clear previous items
+               if (projects.length === 0) {
+                   contextMenuProjectSubmenu.innerHTML = '<div class="context-menu-item text-gray-400 italic">No projects defined</div>';
+                   return;
+               }
+               // Add "None" option
+               const noneItem = document.createElement('div');
+               noneItem.className = 'context-menu-item project-submenu-item';
+               noneItem.textContent = 'None';
+               noneItem.dataset.projectId = ''; // Empty value for 'None'
+               noneItem.addEventListener('click', handleMoveToProject);
+               contextMenuProjectSubmenu.appendChild(noneItem);
 
-            // Populates the "Move to Project" submenu.
-            const populateProjectSubmenu = () => { /* ... (no changes) ... */
-                contextMenuProjectSubmenu.innerHTML = '';
-                if (projects.length === 0) {
-                    contextMenuProjectSubmenu.innerHTML = '<div class="context-menu-item text-gray-400 italic">No projects defined</div>';
-                    return;
-                }
-                projects.sort((a, b) => a.name.localeCompare(b.name)).forEach(project => {
-                    const item = document.createElement('div');
-                    item.className = 'context-menu-item project-submenu-item';
-                    item.textContent = project.name;
-                    item.dataset.projectId = project.id;
-                    item.addEventListener('click', handleMoveToProject);
-                    contextMenuProjectSubmenu.appendChild(item);
-                });
+               // Add actual projects
+               projects.sort((a, b) => a.name.localeCompare(b.name)).forEach(project => {
+                   const item = document.createElement('div');
+                   item.className = 'context-menu-item project-submenu-item';
+                   item.textContent = project.name;
+                   item.dataset.projectId = project.id;
+                   item.addEventListener('click', handleMoveToProject);
+                   contextMenuProjectSubmenu.appendChild(item);
+               });
             };
-
-            // Populates the "Change Status To" list
-            const populateStatusList = () => { /* ... (no changes) ... */
-                contextMenuStatusList.innerHTML = '';
-                const availableStatuses = [
-                    { value: 'inbox', text: 'Inbox' }, { value: 'next', text: 'Next Action' },
-                    { value: 'project_task', text: 'Project Task' }, { value: 'waiting', text: 'Waiting For' },
-                    { value: 'scheduled', text: 'Scheduled' }, { value: 'someday', text: 'Someday/Maybe' },
-                    { value: 'reference', text: 'Reference' },
-                ];
-                availableStatuses.forEach(statusInfo => {
-                    const item = document.createElement('div');
-                    item.className = 'context-menu-item status-list-item';
-                    item.textContent = statusInfo.text;
-                    item.dataset.status = statusInfo.value;
-                    item.addEventListener('click', handleChangeStatus);
-                    contextMenuStatusList.appendChild(item);
-                });
+            const populateStatusList = () => {
+               contextMenuStatusList.innerHTML = ''; // Clear previous items
+               const availableStatuses = [
+                   { value: 'inbox', text: 'Inbox' }, { value: 'next', text: 'Next Action' },
+                   { value: 'project_task', text: 'Project Task' }, { value: 'waiting', text: 'Waiting For' },
+                   { value: 'scheduled', text: 'Scheduled' }, { value: 'someday', text: 'Someday/Maybe' },
+                   { value: 'reference', text: 'Reference' },
+               ];
+               availableStatuses.forEach(statusInfo => {
+                   const item = document.createElement('div');
+                   item.className = 'context-menu-item status-list-item';
+                   item.textContent = statusInfo.text;
+                   item.dataset.status = statusInfo.value;
+                   item.addEventListener('click', handleChangeStatus);
+                   contextMenuStatusList.appendChild(item);
+               });
             };
+            const showContextMenu = (taskId, x, y) => {
+               contextMenuTaskId = taskId;
+               const task = getTaskById(taskId);
+               if (!task || !taskContextMenu) return;
 
+               // Configure Complete item
+               const completeTextSpan = contextMenuComplete.querySelector('.menu-text');
+               const completeIcon = contextMenuComplete.querySelector('i');
+               if (task.status === 'completed') { completeTextSpan.textContent = 'Mark as Next Action'; completeIcon.className = 'fas fa-star fa-fw'; }
+               else { completeTextSpan.textContent = 'Mark Complete'; completeIcon.className = 'fas fa-check fa-fw'; }
 
-            // Shows and positions the context menu.
-            const showContextMenu = (taskId, x, y) => { /* ... (no changes) ... */
-                contextMenuTaskId = taskId;
-                const task = getTaskById(taskId);
-                if (!task || !taskContextMenu) return;
-                // Configure Complete item
-                const completeTextSpan = contextMenuComplete.querySelector('.menu-text');
-                const completeIcon = contextMenuComplete.querySelector('i');
-                if (task.status === 'completed') { completeTextSpan.textContent = 'Mark as Next Action'; completeIcon.className = 'fas fa-star fa-fw'; }
-                else { completeTextSpan.textContent = 'Mark Complete'; completeIcon.className = 'fas fa-check fa-fw'; }
-                // Configure Timer item
-                const timerTextSpan = contextMenuTimer.querySelector('.menu-text');
-                const timerIcon = contextMenuTimer.querySelector('i');
-                const isTimerActive = !!getActiveLog(taskId);
-                if (isTimerActive) { timerTextSpan.textContent = 'Stop Timer'; timerIcon.className = 'fas fa-stop fa-fw text-red-500'; }
-                else { timerTextSpan.textContent = 'Start Timer'; timerIcon.className = 'fas fa-play fa-fw text-green-500'; }
-                // Populate submenus/lists
-                populateStatusList();
-                populateProjectSubmenu();
-                // Position and show
-                taskContextMenu.style.left = `${x}px`;
-                taskContextMenu.style.top = `${y}px`;
-                taskContextMenu.classList.add('visible');
-                requestAnimationFrame(() => {
-                    const menuRect = taskContextMenu.getBoundingClientRect();
-                    const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight;
-                    let adjustedX = x; let adjustedY = y;
-                    if (x + menuRect.width > viewportWidth) { adjustedX = x - menuRect.width; }
-                    if (y + menuRect.height > viewportHeight) { adjustedY = y - menuRect.height; }
-                    if (adjustedX < 0) adjustedX = 5; if (adjustedY < 0) adjustedY = 5;
-                    taskContextMenu.style.left = `${adjustedX}px`;
-                    taskContextMenu.style.top = `${adjustedY}px`;
-                });
+               // Configure Timer item
+               const timerTextSpan = contextMenuTimer.querySelector('.menu-text');
+               const timerIcon = contextMenuTimer.querySelector('i');
+               const isTimerActive = !!getActiveLog(taskId);
+               if (isTimerActive) { timerTextSpan.textContent = 'Stop Timer'; timerIcon.className = 'fas fa-stop fa-fw text-red-500'; }
+               else { timerTextSpan.textContent = 'Start Timer'; timerIcon.className = 'fas fa-play fa-fw text-green-500'; }
+
+               // Populate submenus/lists
+               populateStatusList();
+               populateProjectSubmenu();
+
+               // Position and show
+               taskContextMenu.style.left = `${x}px`;
+               taskContextMenu.style.top = `${y}px`;
+               taskContextMenu.classList.add('visible');
+
+               // Adjust position if off-screen (defer to next frame for accurate dimensions)
+               requestAnimationFrame(() => {
+                   const menuRect = taskContextMenu.getBoundingClientRect();
+                   const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight;
+                   let adjustedX = x; let adjustedY = y;
+                   if (x + menuRect.width > viewportWidth) { adjustedX = x - menuRect.width; }
+                   if (y + menuRect.height > viewportHeight) { adjustedY = y - menuRect.height; }
+                   if (adjustedX < 0) adjustedX = 5; // Prevent going off left edge
+                   if (adjustedY < 0) adjustedY = 5; // Prevent going off top edge
+                   taskContextMenu.style.left = `${adjustedX}px`;
+                   taskContextMenu.style.top = `${adjustedY}px`;
+               });
             };
 
             // --- Context Menu Event Handlers ---
-            // Handles the right-click event on a task item.
-            const handleContextMenu = (event) => { /* ... (no changes) ... */
-                event.preventDefault();
-                hideContextMenu();
-                const taskItem = event.target.closest('.task-item');
-                if (taskItem && taskItem.dataset.taskId) {
-                    const taskId = taskItem.dataset.taskId;
-                    showContextMenu(taskId, event.pageX, event.pageY);
+            const handleContextMenu = (event) => {
+               event.preventDefault(); // Prevent default browser context menu
+               hideContextMenu(); // Hide any existing menu
+               const taskItem = event.target.closest('.task-item');
+               if (taskItem && taskItem.dataset.taskId) {
+                   const taskId = taskItem.dataset.taskId;
+                   showContextMenu(taskId, event.pageX, event.pageY);
+               }
+            };
+            const handleToggleComplete = () => {
+               if (!contextMenuTaskId) return;
+               const task = getTaskById(contextMenuTaskId);
+               if (!task) return;
+               const newStatus = task.status === 'completed' ? 'next' : 'completed';
+               updateTask(contextMenuTaskId, { status: newStatus });
+               hideContextMenu();
+            };
+            const handleToggleTimer = () => {
+               if (!contextMenuTaskId) return;
+               const isTimerActive = !!getActiveLog(contextMenuTaskId);
+               if (isTimerActive) { stopTimer(contextMenuTaskId); }
+               else { startTimer(contextMenuTaskId); }
+               hideContextMenu();
+            };
+            const handleChangeStatus = (event) => {
+                if (!contextMenuTaskId) return;
+                const newStatus = event.target.dataset.status;
+                if (!newStatus) return;
+                const task = getTaskById(contextMenuTaskId);
+                if (newStatus === 'project_task' && !task?.projectId) {
+                    alert('Cannot set status to "Project Task" without assigning a project first. Use "Move to Project" instead.');
+                } else {
+                    updateTask(contextMenuTaskId, { status: newStatus });
                 }
-            };
-
-            // Handles clicking the "Mark Complete" / "Mark Next Action" item.
-            const handleToggleComplete = () => { /* ... (no changes) ... */
-                if (!contextMenuTaskId) return;
-                const task = getTaskById(contextMenuTaskId);
-                if (!task) return;
-                const newStatus = task.status === 'completed' ? 'next' : 'completed';
-                updateTask(contextMenuTaskId, { status: newStatus });
                 hideContextMenu();
             };
-
-            // Handles clicking the Start/Stop Timer item
-            const handleToggleTimer = () => { /* ... (no changes) ... */
-                if (!contextMenuTaskId) return;
-                const isTimerActive = !!getActiveLog(contextMenuTaskId);
-                if (isTimerActive) { stopTimer(contextMenuTaskId); }
-                else { startTimer(contextMenuTaskId); }
-                hideContextMenu();
+            const handleMoveToProject = (event) => {
+               if (!contextMenuTaskId) return;
+               const projectId = event.target.dataset.projectId; // Can be empty string for 'None'
+               // projectId will be null if the 'None' option was clicked
+               const newProjectId = projectId || null;
+               const task = getTaskById(contextMenuTaskId);
+               let updates = { projectId: newProjectId };
+               // If moving to a project, and task is not completed, set status to project_task
+               // If moving to 'None', don't automatically change status unless it was project_task
+               if (task) {
+                    if (newProjectId && task.status !== 'completed') {
+                        updates.status = 'project_task';
+                    } else if (!newProjectId && task.status === 'project_task') {
+                        // If removing from project and status was 'project_task', revert to 'next'
+                        updates.status = 'next';
+                    }
+               }
+               updateTask(contextMenuTaskId, updates);
+               hideContextMenu();
             };
-
-            // Handles clicking a status in the "Change Status To" list
-            const handleChangeStatus = (event) => { /* ... (no changes) ... */
-                 if (!contextMenuTaskId) return;
-                 const newStatus = event.target.dataset.status;
-                 if (!newStatus) return;
-                 const task = getTaskById(contextMenuTaskId);
-                 if (newStatus === 'project_task' && !task?.projectId) { alert('Cannot set status to "Project Task" without assigning a project first. Use "Move to Project" instead.'); }
-                 else { updateTask(contextMenuTaskId, { status: newStatus }); }
-                 hideContextMenu();
-            };
-
-            // Handles clicking a project in the "Move to Project" submenu.
-            const handleMoveToProject = (event) => { /* ... (no changes) ... */
-                if (!contextMenuTaskId) return;
-                const projectId = event.target.dataset.projectId;
-                if (!projectId) return;
-                const task = getTaskById(contextMenuTaskId);
-                let updates = { projectId: projectId };
-                if (task && task.status !== 'completed') { updates.status = 'project_task'; }
-                updateTask(contextMenuTaskId, updates);
-                hideContextMenu();
-            };
-
-            // Handles clicking the "Delete Task" item.
-            const handleDeleteTask = () => { /* ... (no changes) ... */
-                if (!contextMenuTaskId) return;
-                const taskIdToDelete = contextMenuTaskId;
-                hideContextMenu();
-                deleteTask(taskIdToDelete);
+            const handleDeleteTask = () => {
+               if (!contextMenuTaskId) return;
+               const taskIdToDelete = contextMenuTaskId; // Store ID before hiding menu
+               hideContextMenu();
+               deleteTask(taskIdToDelete); // Call delete after hiding
             };
 
             // --- Event Listeners Setup ---
-            // (Add Task, Add Mgmt Item, Modal Save, Modal Close/Cancel, Import/Export, Sidebar, Mobile Menu, Filters - NO CHANGES)
+            // Forms
             if (addTaskForm) addTaskForm.addEventListener('submit', (e) => { e.preventDefault(); if (newTaskTitleInput) addTask(newTaskTitleInput.value); });
             if (addManagementItemForm) addManagementItemForm.addEventListener('submit', (e) => { e.preventDefault(); if (newManagementItemNameInput) addManagementItem(newManagementItemNameInput.value); });
             if (editTaskForm) editTaskForm.addEventListener('submit', (e) => { e.preventDefault(); const id = editTaskId.value; if (!id) return; const updates = { title: editTaskTitle.value.trim(), notes: editTaskNotes.value.trim(), status: editTaskStatus.value, projectId: editTaskProject.value || null, contextId: editTaskContext.value || null, areaId: editTaskArea.value || null, dueDate: editTaskDueDate.value || null }; if (updates.status === 'project_task' && !updates.projectId) { alert('Please select a project for a "Project Task".'); return; } updateTask(id, updates); closeModal(); });
+
+            // Modals
             if (closeModalButton) closeModalButton.addEventListener('click', closeModal);
             if (cancelModalButton) cancelModalButton.addEventListener('click', closeModal);
             if (timeLogModalCloseButton) timeLogModalCloseButton.addEventListener('click', closeTimeLogModal);
             if (timeLogModalCancelButton) timeLogModalCancelButton.addEventListener('click', closeTimeLogModal);
             window.addEventListener('click', (event) => { if (event.target === taskModal) closeModal(); if (event.target === timeLogModal) closeTimeLogModal(); }); // Close modals on outside click
+
+            // Import/Export
             if (exportDataButton) exportDataButton.addEventListener('click', exportData);
             if (importDataInput) importDataInput.addEventListener('change', importData);
+            // *** NEW: Time Log Export Button Listeners ***
+            if (exportDailyLogsButton) exportDailyLogsButton.addEventListener('click', () => exportTimeLogs('daily'));
+            if (exportWeeklyLogsButton) exportWeeklyLogsButton.addEventListener('click', () => exportTimeLogs('weekly'));
+            if (exportMonthlyLogsButton) exportMonthlyLogsButton.addEventListener('click', () => exportTimeLogs('monthly'));
+            // *** END NEW ***
+
+            // Sidebar Navigation & Mobile Menu
             sidebarLinks.forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const view = link.id.replace('nav-', '');
-                    if (view !== currentView) {
-                        currentView = view;
-                        if (!['projects', 'contexts', 'areas'].includes(view)) currentManagementView = null;
-                        currentContextFilter = 'all'; currentProjectFilter = 'all';
-                        currentSearchTerm = ''; // *** NEW: Clear search on view change ***
-                        if(searchInput) searchInput.value = ''; // Clear search input field
-                        render();
-                    }
-                    if (sidebar && sidebar.classList.contains('mobile-visible')) closeMobileSidebar();
-                });
+               link.addEventListener('click', (e) => {
+                   e.preventDefault();
+                   const view = link.id.replace('nav-', '');
+                   if (view !== currentView) {
+                       currentView = view;
+                       if (!['projects', 'contexts', 'areas'].includes(view)) currentManagementView = null; // Reset management view if navigating away
+                       currentContextFilter = 'all'; // Reset filters
+                       currentProjectFilter = 'all';
+                       currentSearchTerm = ''; // Clear search on view change
+                       if(searchInput) searchInput.value = ''; // Clear search input field
+                       render();
+                   }
+                   if (sidebar && sidebar.classList.contains('mobile-visible')) closeMobileSidebar(); // Close mobile menu on nav
+               });
             });
             if (menuToggleButton) menuToggleButton.addEventListener('click', (e) => { e.stopPropagation(); openMobileSidebar(); });
             if (sidebarCloseButton) sidebarCloseButton.addEventListener('click', closeMobileSidebar);
             if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeMobileSidebar);
+
+            // Header Filters
             if (contextFilterSelect) contextFilterSelect.addEventListener('change', (e) => { currentContextFilter = e.target.value; if (currentView === 'next') render(); });
             if (projectFilterSelect) projectFilterSelect.addEventListener('change', (e) => { currentProjectFilter = e.target.value; if (currentView === 'all-tasks') render(); });
 
-            // Time Log Modal Buttons & Form Listeners (NO CHANGES)
+            // Time Log Modal Buttons & Form
             if (startTimerButton) startTimerButton.addEventListener('click', () => { const taskId = timeLogTaskId.value; if (taskId) startTimer(taskId); });
             if (stopTimerButton) stopTimerButton.addEventListener('click', () => { const taskId = timeLogTaskId.value; if (taskId) stopTimer(taskId); });
             if (addManualLogForm) addManualLogForm.addEventListener('submit', (e) => { e.preventDefault(); const taskId = timeLogTaskId.value; const dateStr = manualLogDateInput.value; const durationStr = manualLogDurationInput.value; const description = manualLogDescriptionInput.value; if (taskId) { addManualLog(taskId, dateStr, durationStr, description); } });
 
-            // Context Menu Action Listeners
+            // Context Menu Actions
             if (contextMenuComplete) contextMenuComplete.addEventListener('click', handleToggleComplete);
             if (contextMenuTimer) contextMenuTimer.addEventListener('click', handleToggleTimer);
             if (contextMenuDelete) contextMenuDelete.addEventListener('click', handleDeleteTask);
-            // Listeners for status list items and project submenu items are added dynamically
+            // Listeners for status list items and project submenu items are added dynamically within populate functions
 
-            // Global listener to hide context menu on outside click
+            // Global listener to hide context menu
             document.addEventListener('click', (event) => {
-                if (taskContextMenu && taskContextMenu.classList.contains('visible') && !taskContextMenu.contains(event.target)) {
-                    hideContextMenu();
-                }
+               // Hide if visible and the click is outside the menu itself
+               if (taskContextMenu && taskContextMenu.classList.contains('visible') && !taskContextMenu.contains(event.target)) {
+                   hideContextMenu();
+               }
             });
             // Also hide on scroll
             window.addEventListener('scroll', () => {
-                 if (taskContextMenu && taskContextMenu.classList.contains('visible')) {
-                    hideContextMenu();
-                 }
-            }, true);
+                if (taskContextMenu && taskContextMenu.classList.contains('visible')) {
+                   hideContextMenu();
+                }
+            }, true); // Use capture phase to catch scroll early
 
-            // *** NEW: Search Input Listener ***
+            // Search Input
             if (searchInput) {
-                // Debounce the render function call for search input
-                const debouncedRender = debounce(render, 300); // 300ms delay
-
-                searchInput.addEventListener('input', (e) => {
-                    currentSearchTerm = e.target.value;
-                    debouncedRender(); // Call the debounced render
-                });
+               const debouncedRender = debounce(render, 300); // 300ms delay
+               searchInput.addEventListener('input', (e) => {
+                   currentSearchTerm = e.target.value;
+                   debouncedRender(); // Call the debounced render
+               });
             }
 
-
-             // --- Initial Setup ---
-             const initiallyActiveTask = tasks.find(task => task.timeLogs?.some(log => log.isActive));
-             if (initiallyActiveTask) {
-                 activeTimerTaskId = initiallyActiveTask.id;
-             }
-             render(); // Initial render
+            // --- Initial Setup ---
+            // Check for any timers that were left running when the page was closed/reloaded
+            const initiallyActiveTask = tasks.find(task => task.timeLogs?.some(log => log.isActive));
+            if (initiallyActiveTask) {
+                console.log("Found initially active timer for task:", initiallyActiveTask.id);
+                activeTimerTaskId = initiallyActiveTask.id;
+                startActiveTimerUpdates(initiallyActiveTask.id); // Start UI updates for the active timer
+            }
+            render(); // Initial render of the application state
 
         }); // End DOMContentLoaded listener
     </script>
